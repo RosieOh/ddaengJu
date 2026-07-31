@@ -1,0 +1,29 @@
+# 수집 이력 (로컬 데이터 — 각자 환경에서 쌓인다)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# 파이썬
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+
+# 내보낸 리포트
+*.xlsx
+파워링크리포트*.html
+powerlink_*.html
+
+# 이 프로젝트와 무관한 개인 파일
+대전_커플여행*.csv
+대전_커플여행*.xlsx
+
+# 에디터 / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

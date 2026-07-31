@@ -1,0 +1,185 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   시각화 토큰 & 차트 크롬.
+   index.html 과 단독 HTML 리포트가 같은 파일을 공유한다.
+
+   범주형 팔레트는 validate_palette.js 로 검증했다.
+     라이트(표면 #ffffff) : 밝기대·채도·CVD 분리·정상시야 분리 통과,
+                            aqua/yellow/magenta 는 3:1 미만 → 직접 라벨 + 표 보기로 보완
+     다크 (표면 #1c1c1c) : 전 항목 통과
+   슬롯 순서 자체가 CVD 안전장치이므로 임의로 바꾸지 말 것.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.viz {
+  --viz-s1: #2a78d6;  /* blue    — 기준 업체 */
+  --viz-s2: #eb6834;  /* orange  */
+  --viz-s3: #1baf7a;  /* aqua    */
+  --viz-s4: #eda100;  /* yellow  */
+  --viz-s5: #e87ba4;  /* magenta */
+  --viz-s6: #008300;  /* green   */
+  --viz-s7: #4a3aa7;  /* violet  */
+  --viz-s8: #e34948;  /* red     */
+
+  /* 단일 색상 순차 램프 (히트맵·덤벨). 값이 클수록 진하다. */
+  --viz-q1: #cde2fb;
+  --viz-q2: #9ec5f4;
+  --viz-q3: #6da7ec;
+  --viz-q4: #3987e5;
+  --viz-q5: #256abf;
+  --viz-q6: #184f95;
+  --viz-q7: #0d366b;
+
+  --viz-before: #86b6ef;   /* 덤벨: 직전 */
+  --viz-after:  #1c5cab;   /* 덤벨: 현재 */
+
+  --viz-good: #006300;     /* 순위 상승 */
+  --viz-bad:  #d03b3b;     /* 순위 하락 */
+
+  --viz-ink:   var(--ink, #0b0b0b);
+  --viz-ink-2: var(--ink-2, #52514e);
+  --viz-muted: var(--ink-3, #898781);
+  --viz-grid:  #e1e0d9;
+  --viz-axis:  #c3c2b7;
+  --viz-surface: var(--surface, #ffffff);
+}
+
+@media (prefers-color-scheme: dark) {
+  .viz {
+    --viz-s1: #3987e5;
+    --viz-s2: #d95926;
+    --viz-s3: #199e70;
+    --viz-s4: #c98500;
+    --viz-s5: #d55181;
+    --viz-s6: #008300;
+    --viz-s7: #9085e9;
+    --viz-s8: #e66767;
+
+    --viz-q1: #0d366b;
+    --viz-q2: #184f95;
+    --viz-q3: #256abf;
+    --viz-q4: #3987e5;
+    --viz-q5: #6da7ec;
+    --viz-q6: #9ec5f4;
+    --viz-q7: #cde2fb;
+
+    --viz-before: #256abf;
+    --viz-after:  #9ec5f4;
+
+    --viz-good: #0ca30c;
+    --viz-bad:  #d03b3b;
+
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────── 차트 공통 */
+.viz svg { display: block; width: 100%; height: auto; overflow: visible; }
+.viz text { font-family: inherit; fill: var(--viz-muted); font-size: 10px; }
+.viz .v-label { fill: var(--viz-ink-2); font-size: 10px; font-weight: 560; }
+.viz .v-grid { stroke: var(--viz-grid); stroke-width: 1; }
+.viz .v-axis { stroke: var(--viz-axis); stroke-width: 1; }
+.viz .v-thresh { stroke: var(--viz-axis); stroke-width: 1; stroke-dasharray: 4 4; }
+.viz .v-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.viz .v-dot { stroke: var(--viz-surface); stroke-width: 2; }
+.viz .v-hit { fill: transparent; cursor: crosshair; }
+
+.viz-legend {
+  display: flex; flex-wrap: wrap; gap: 0.25rem 1rem;
+  padding: 0 1rem 0.625rem;
+}
+.viz-legend button {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  background: none; border: 0; padding: 0.125rem 0;
+  font-size: 0.75rem; color: var(--viz-ink-2); cursor: pointer;
+  border-radius: 3px;
+}
+.viz-legend button[aria-pressed="false"] { color: var(--viz-muted); opacity: 0.55; }
+.viz-legend button:focus-visible { outline: 2px solid var(--accent, #2a78d6); outline-offset: 2px; }
+.viz-legend i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+/* 스케일 범례 (순차 램프) */
+.viz-scale { display: flex; align-items: center; gap: 0.5rem; padding: 0 1rem 0.625rem; font-size: 0.75rem; color: var(--viz-ink-2); }
+.viz-scale .ramp { display: flex; gap: 2px; }
+.viz-scale .ramp i { width: 16px; height: 10px; border-radius: 2px; }
+
+/* 툴팁 */
+.viz-tip {
+  position: fixed; z-index: 500; pointer-events: none;
+  padding: 0.4375rem 0.5625rem;
+  background: var(--viz-ink); color: var(--viz-surface);
+  border-radius: 5px; font-size: 0.75rem; line-height: 1.45;
+  white-space: nowrap; opacity: 0;
+  transition: opacity 120ms ease-out;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.viz-tip.on { opacity: 1; }
+.viz-tip b { font-weight: 620; }
+.viz-tip .row { display: flex; align-items: center; gap: 0.375rem; }
+.viz-tip .row i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+/* 차트 ↔ 표 전환 */
+.viz-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.875rem 1rem 0.5rem; }
+.viz-head h3 { margin: 0; font-size: 0.875rem; font-weight: 620; }
+.viz-head .spacer { flex: 1; }
+.viz-head .note { margin: 0; padding: 0; border: 0; background: none; font-size: 0.75rem; color: var(--viz-muted); }
+.viz-toggle {
+  background: none; border: 1px solid var(--line, #ddd); border-radius: 5px;
+  padding: 0.1875rem 0.4375rem; font-size: 0.6875rem; color: var(--viz-ink-2); cursor: pointer;
+}
+.viz-toggle:hover { border-color: var(--viz-ink-2); }
+.viz-toggle:focus-visible { outline: 2px solid var(--accent, #2a78d6); outline-offset: 1px; }
+
+.viz-table { padding: 0 1rem 1rem; overflow-x: auto; }
+.viz-table table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.viz-table th, .viz-table td {
+  padding: 0.3125rem 0.5rem; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid var(--viz-grid);
+}
+.viz-table th:first-child, .viz-table td:first-child { text-align: left; }
+.viz-table thead th { color: var(--viz-ink-2); font-weight: 600; }
+.viz-table td { font-variant-numeric: tabular-nums; color: var(--viz-ink); }
+
+/* 증감 표기 — 색만으로 뜻을 전달하지 않도록 항상 화살표 + 숫자를 함께 쓴다 */
+.viz-delta { font-variant-numeric: tabular-nums; font-size: 0.75rem; font-weight: 560; }
+.viz-delta.up { color: var(--viz-good); }
+.viz-delta.down { color: var(--viz-bad); }
+.viz-delta.flat { color: var(--viz-muted); }
+
+/* KPI 스탯 타일 */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--line, #e5e5e5); }
+.kpi { background: var(--viz-surface); padding: 0.875rem 1rem; display: grid; gap: 0.1875rem; }
+.kpi .k-label { font-size: 0.75rem; color: var(--viz-ink-2); }
+.kpi .k-value { font-size: 1.625rem; font-weight: 620; line-height: 1.15; letter-spacing: -0.02em; }
+.kpi .k-value small { font-size: 0.875rem; font-weight: 560; color: var(--viz-ink-2); margin-left: 1px; }
+.kpi .k-foot { display: flex; align-items: center; gap: 0.5rem; min-height: 18px; }
+.kpi .k-spark { display: block; width: 72px; height: 18px; flex: none; }
+
+/* ─────────────────────────────────────────────────── 데이터가 도착하는 모션
+   선은 왼쪽에서 오른쪽으로 그려지고(시간순), 덤벨의 '현재' 점은 '직전' 자리에서
+   실제 이동 거리만큼 밀려온다. 값의 변화가 곧 움직임이라 장식이 아니다.
+   pathLength="1" 을 쓰므로 경로 길이와 무관하게 같은 속도로 그려진다.        */
+@keyframes viz-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes viz-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes viz-shift { from { transform: translateX(var(--from, 0)); } to { transform: translateX(0); } }
+@keyframes viz-cell { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+.viz .v-line {
+  stroke-dasharray: 1;
+  animation: viz-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.viz .v-dot { animation: viz-appear 260ms ease-out 380ms both; }
+.viz .v-label { animation: viz-appear 320ms ease-out 520ms both; }
+
+.viz .v-move { animation: viz-shift 520ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both; }
+/* SVG 도형은 transform-box 를 지정해야 자기 중심을 기준으로 커진다 */
+.viz .v-cell {
+  transform-box: fill-box; transform-origin: center;
+  animation: viz-cell 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viz-tip { transition: none; }
+  /* 끝 상태는 반드시 남는다 — 모션이 꺼졌다고 선이 사라지면 안 된다 */
+  .viz .v-line { stroke-dasharray: none; animation: none; }
+  .viz .v-dot, .viz .v-label, .viz .v-move, .viz .v-cell { animation: none; }
+}

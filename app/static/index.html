@@ -1,0 +1,1157 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>파워링크 노출순위 모니터</title>
+<link rel="stylesheet" href="/static/viz.css" />
+<style>
+/* ─────────────────────────────────────────────────────────── 토큰 */
+:root {
+  color-scheme: light;
+
+  /* 중립 표면: 채도 0. 데이터가 색을 갖고, 배경은 갖지 않는다. */
+  --bg:            oklch(0.978 0 0);
+  --surface:       oklch(1 0 0);
+  --surface-sunk:  oklch(0.962 0 0);
+  --line:          oklch(0.905 0 0);
+  --line-soft:     oklch(0.945 0 0);
+
+  --ink:           oklch(0.24 0 0);
+  --ink-2:         oklch(0.44 0 0);
+  --ink-3:         oklch(0.56 0 0);   /* 4.6:1 on --surface */
+
+  /* 단일 액센트: 주요 동작, 현재 선택, 상태 표시에만 쓴다. */
+  --accent:        oklch(0.53 0.155 34);
+  --accent-hover:  oklch(0.47 0.155 34);
+  --accent-soft:   oklch(0.955 0.022 34);
+  --accent-line:   oklch(0.86 0.06 34);
+
+  --ok:            oklch(0.46 0.11 152);
+  --ok-soft:       oklch(0.955 0.03 152);
+  --warn:          oklch(0.48 0.11 75);
+  --warn-soft:     oklch(0.96 0.04 85);
+  --danger:        oklch(0.51 0.17 25);
+
+  --radius:   8px;
+  --radius-s: 5px;
+
+  --z-sticky: 100;
+  --z-toast:  400;
+  --z-splash: 900;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.5, 0, 0.75, 0);
+  --dur:  180ms;
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+          "Malgun Gothic", "Apple SD Gothic Neo", Roboto, sans-serif;
+  --mono: "SFMono-Regular", ui-monospace, Consolas, "D2Coding", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg:           oklch(0.185 0 0);
+    --surface:      oklch(0.225 0 0);
+    --surface-sunk: oklch(0.205 0 0);
+    --line:         oklch(0.325 0 0);
+    --line-soft:    oklch(0.275 0 0);
+    --ink:          oklch(0.945 0 0);
+    --ink-2:        oklch(0.80 0 0);
+    --ink-3:        oklch(0.685 0 0);
+    --accent:       oklch(0.72 0.14 38);
+    --accent-hover: oklch(0.79 0.14 38);
+    --accent-soft:  oklch(0.28 0.05 34);
+    --accent-line:  oklch(0.42 0.09 34);
+    --ok:           oklch(0.76 0.13 155);
+    --ok-soft:      oklch(0.27 0.05 155);
+    --warn:         oklch(0.79 0.12 82);
+    --warn-soft:    oklch(0.29 0.05 82);
+    --danger:       oklch(0.72 0.16 25);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 620; letter-spacing: -0.011em; }
+h1 { font-size: 1rem; }
+h2 { font-size: 0.9375rem; }
+p  { margin: 0; }
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+/* ─────────────────────────────────────────────────────── 상단 바 */
+.topbar {
+  position: sticky; top: 0; z-index: var(--z-sticky);
+  display: flex; align-items: center; gap: 0.875rem;
+  padding: 0.6875rem 1.25rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
+.brand span { color: var(--ink-3); font-size: 0.75rem; white-space: nowrap; }
+.topbar .spacer { flex: 1; }
+
+.sched {
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  padding: 0.25rem 0.5625rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.75rem; color: var(--ink-2);
+  white-space: nowrap;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); flex: none; }
+.sched[data-on="1"] .dot { background: var(--ok); }
+.sched[data-on="0"] .dot { background: var(--ink-3); }
+
+/* ───────────────────────────────────────────────────────── 레이아웃 */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.panel > header {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--line-soft);
+}
+.panel > header .spacer { flex: 1; }
+.panel-body { padding: 1rem; }
+
+.hint { color: var(--ink-3); font-size: 0.8125rem; }
+
+/* ───────────────────────────────────────────────────── 폼 컨트롤 */
+.field { display: grid; gap: 0.4375rem; }
+label.lbl { font-size: 0.8125rem; font-weight: 560; color: var(--ink-2); }
+
+textarea, input[type="text"], input[type="number"], select {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+textarea { min-height: 84px; resize: vertical; line-height: 1.6; }
+textarea::placeholder, input::placeholder { color: var(--ink-3); }
+textarea:hover, input:hover, select:hover { border-color: var(--ink-3); }
+textarea:focus-visible, input:focus-visible, select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font-size: 0.8125rem; font-weight: 560;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
+              color var(--dur) var(--ease), transform 90ms var(--ease);
+}
+.btn:hover:not(:disabled) { background: var(--surface-sunk); border-color: var(--ink-3); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn.primary {
+  background: var(--accent); border-color: var(--accent);
+  color: oklch(0.99 0 0);
+}
+.btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+@media (prefers-color-scheme: dark) { .btn.primary { color: oklch(0.16 0 0); } }
+
+.btn .spin {
+  width: 13px; height: 13px; flex: none;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 620ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.875rem; }
+.actions .spacer { flex: 1; }
+
+/* ───────────────────────────────────────────────────────── 결과 표 */
+.tablewrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td {
+  padding: 0.5625rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+thead th {
+  position: sticky; top: 0;
+  background: var(--surface-sunk);
+  font-size: 0.75rem; font-weight: 600; color: var(--ink-2);
+  border-bottom: 1px solid var(--line);
+}
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr.kw-row:hover { background: var(--surface-sunk); }
+th.primary-col, td.primary-col {
+  background: var(--accent-soft);
+  border-left: 1px solid var(--accent-line);
+  border-right: 1px solid var(--accent-line);
+}
+
+.kw {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  background: none; border: 0; padding: 0;
+  font-weight: 560; cursor: pointer; color: var(--ink);
+  border-radius: 3px;
+}
+.kw:hover { color: var(--accent); }
+.kw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kw .chev { transition: transform var(--dur) var(--ease); color: var(--ink-3); }
+.kw[aria-expanded="true"] .chev { transform: rotate(90deg); }
+
+.rank { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rank em { font-style: normal; font-size: 0.75rem; font-weight: 500; color: var(--ink-3); margin-left: 1px; }
+.rank.top    { color: var(--ok); }
+.rank.first  { color: var(--ink); }
+.rank.deep   { color: var(--warn); }
+.rank.out    { color: var(--ink-3); font-weight: 500; }
+
+.tag {
+  display: inline-block; margin-left: 0.375rem;
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 3px;
+  font-size: 0.6875rem; font-weight: 560;
+  border: 1px solid var(--line);
+  color: var(--ink-3);
+}
+.tag.shift { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+
+/* 상세 펼침 (모달 대신 인라인 확장) */
+tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px solid var(--line); }
+.detail-inner { padding: 0.75rem 1rem 1rem; }
+.adlist { display: grid; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: var(--radius-s); overflow: hidden; }
+.ad {
+  display: grid; grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: 0.75rem; padding: 0.5rem 0.75rem;
+  background: var(--surface); white-space: normal;
+}
+.ad.hit { background: var(--accent-soft); }
+.ad .r { font-variant-numeric: tabular-nums; font-weight: 620; color: var(--ink-2); text-align: right; }
+.ad.hit .r { color: var(--accent); }
+.ad .site { font-weight: 560; }
+.ad .dom { color: var(--ink-3); font-size: 0.75rem; font-family: var(--mono); }
+.ad .tt { color: var(--ink-2); font-size: 0.8125rem; }
+
+/* ─────────────────────────────────────────────── 분석 필터 & 차트 그리드 */
+/* 필터 한 줄이 아래 차트 전부를 함께 바꾼다 (차트별 개별 필터를 두지 않는다) */
+.filterbar {
+  position: sticky; top: 49px; z-index: calc(var(--z-sticky) - 1);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.filterbar .fb-title { font-weight: 620; font-size: 0.9375rem; margin-right: 0.25rem; }
+.filterbar select { width: auto; min-width: 8.5rem; padding: 0.375rem 0.5rem; }
+.filterbar .spacer { flex: 1; }
+
+/* 차트는 가로로 쪼개지 않고 위에서 아래로 쌓는다. 좁은 칸에 넣으면
+   히트맵 글자와 덤벨 라벨이 뭉개진다. 폭은 각 차트가 알아서 제한한다. */
+.chart-grid {
+  display: grid;
+  gap: 1px;
+  background: var(--line-soft);
+  border-top: 1px solid var(--line-soft);
+}
+.chart-cell { background: var(--surface); min-width: 0; }
+.chart-cell:empty { display: none; }
+
+/* .empty 는 display:grid 라서 hidden 속성만으로는 안 숨는다. */
+[hidden] { display: none !important; }
+
+/* ───────────────────────────────────────────────────── 설정 패널 */
+details.settings > summary {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.875rem 1rem;
+  cursor: pointer; list-style: none;
+  font-weight: 620; font-size: 0.9375rem;
+}
+details.settings > summary::-webkit-details-marker { display: none; }
+details.settings > summary .chev { color: var(--ink-3); transition: transform var(--dur) var(--ease); }
+details.settings[open] > summary { border-bottom: 1px solid var(--line-soft); }
+details.settings[open] > summary .chev { transform: rotate(90deg); }
+details.settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius); }
+
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+.targets { display: grid; gap: 0.5rem; }
+.trow { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto; gap: 0.5rem; align-items: center; }
+.trow .icon-btn {
+  width: 2rem; height: 2rem; display: grid; place-items: center;
+  background: none; border: 1px solid var(--line); border-radius: var(--radius-s);
+  color: var(--ink-3); cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.trow .icon-btn:hover { color: var(--danger); border-color: var(--danger); }
+.trow .icon-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.switch { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }
+
+/* ─────────────────────────────────────────────── 상태 / 빈 상태 */
+.empty { padding: 2.5rem 1.25rem; text-align: center; display: grid; gap: 0.4375rem; justify-items: center; }
+.empty h3 { font-size: 0.9375rem; }
+.empty p { color: var(--ink-3); max-width: 44ch; }
+
+.skel { display: grid; gap: 0.5rem; padding: 1rem; }
+.skel i {
+  display: block; height: 1.75rem; border-radius: var(--radius-s);
+  background: linear-gradient(90deg, var(--surface-sunk) 25%, var(--line-soft) 50%, var(--surface-sunk) 75%);
+  background-size: 260% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+@keyframes shimmer { to { background-position: -160% 0; } }
+
+.note {
+  display: flex; gap: 0.5rem; align-items: flex-start;
+  margin: 0 1rem 1rem; padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line); border-radius: var(--radius-s);
+  background: var(--surface-sunk);
+  font-size: 0.8125rem; color: var(--ink-2);
+}
+.note.err { border-color: var(--danger); color: var(--danger); background: transparent; }
+
+#toast {
+  position: fixed; z-index: var(--z-toast);
+  left: 50%; bottom: 1.5rem; transform: translate(-50%, 0.75rem);
+  padding: 0.5625rem 0.875rem;
+  background: var(--ink); color: var(--bg);
+  border-radius: var(--radius-s); font-size: 0.8125rem;
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ═══════════════════════════════════════════════════════════ 스플래시
+   장식이 아니라 이 도구가 하는 일을 그대로 보여주는 장면이다.
+   광고 슬롯 15칸을 세워 두고, 마커와 숫자가 15위에서 1위까지 직접 세며 올라간다.
+   손으로 세던 그 일이다.                                              */
+.splash {
+  position: fixed; inset: 0; z-index: var(--z-splash);
+  display: grid; place-items: center;
+  background: var(--bg);
+  clip-path: inset(0 0 0 0);
+}
+.splash.out {
+  pointer-events: none;
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 460ms var(--ease);
+}
+
+/* max-content 라야 실제 내용 폭에 맞춰 화면 한가운데에 선다 */
+.splash-stage {
+  display: grid; grid-template-columns: auto auto; align-items: start;
+  gap: 0 1.75rem;
+  width: max-content; max-width: calc(100vw - 3rem);
+}
+
+/* 광고 슬롯 15칸 */
+.slots { display: grid; gap: 6px; position: relative; }
+.slot {
+  width: 116px; height: 12px; border-radius: 3px;
+  background: var(--line);
+  transition: background 260ms var(--ease), opacity 260ms var(--ease), transform 260ms var(--ease);
+  transform-origin: left center;
+}
+.slot.passed { opacity: 0.28; transform: scaleX(0.55); }
+.slot.here { background: var(--accent); opacity: 1; transform: scaleX(1); }
+
+/* 마커 + 숫자는 현재 순위 칸의 높이에 붙어서 같이 올라간다 */
+.counter {
+  position: relative;
+  height: 258px;                 /* 15칸 × 12px + 14간격 × 6px */
+  display: flex; align-items: flex-start;
+}
+.counter-val {
+  position: absolute; left: 0; top: 0;
+  display: flex; align-items: baseline; gap: 2px;
+  transform: translateY(calc(var(--pos, 14) * 18px - 0.5em + 6px));
+  font-variant-numeric: tabular-nums;
+  font-size: 3.25rem; font-weight: 660; line-height: 1;
+  letter-spacing: -0.03em; color: var(--ink);
+}
+.counter-val em { font-style: normal; font-size: 1.125rem; font-weight: 560; color: var(--ink-3); }
+
+/* 한글은 keep-all 이 없으면 단어 한가운데서 끊긴다 ('개발자 남자 / 친구의 작품') */
+.splash-copy {
+  grid-column: 1 / -1; margin-top: 2.5rem;
+  word-break: keep-all; text-wrap: pretty;
+}
+.splash-lead {
+  font-size: 0.9375rem; color: var(--ink-2);
+  opacity: 0; filter: blur(6px); transform: translateY(6px);
+}
+.splash-dedication {
+  margin-top: 1.375rem;
+  display: grid; gap: 0.1875rem;
+  opacity: 0; filter: blur(8px); transform: translateY(8px);
+}
+.splash-dedication span { font-size: 0.9375rem; color: var(--ink-2); }
+.splash-dedication strong {
+  font-size: 1.375rem; font-weight: 660; letter-spacing: -0.02em;
+  color: var(--accent); text-wrap: balance;
+}
+.splash.reveal .splash-lead {
+  animation: resolve 520ms var(--ease) 60ms forwards;
+}
+.splash.reveal .splash-dedication {
+  animation: resolve 560ms var(--ease) 200ms forwards;
+}
+@keyframes resolve {
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
+}
+
+.splash-skip {
+  position: absolute; right: 1.25rem; bottom: 1.25rem;
+  background: none; border: 1px solid var(--line); border-radius: var(--radius-s);
+  padding: 0.375rem 0.6875rem; font-size: 0.75rem; color: var(--ink-3);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.splash-skip:hover { color: var(--ink); border-color: var(--ink-3); }
+.splash-skip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ────────────────────────────────────────────── 상태를 설명하는 모션 */
+
+/* 결과가 도착한다 — 목록이 목록으로 나타날 때만 쓰는 스태거. 총 지연 상한 216ms */
+@keyframes row-in { from { opacity: 0; transform: translateY(5px); } }
+tbody tr.kw-row { animation: row-in 260ms var(--ease) both; }
+
+/* 값이 바뀐 칸만 잠깐 물든다 — 어디가 달라졌는지 눈이 먼저 찾게 */
+@keyframes cell-changed {
+  0%   { background: var(--accent-soft); }
+  100% { background: transparent; }
+}
+td.changed .rank { animation: cell-changed 1100ms var(--ease) forwards; border-radius: 3px; }
+
+/* 상세는 높이가 아니라 grid 트랙으로 편다. 리플로우 없이 매끄럽다 */
+tr.detail > td > .detail-shell {
+  display: grid; grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms var(--ease);
+}
+tr.detail.open > td > .detail-shell { grid-template-rows: 1fr; }
+tr.detail > td > .detail-shell > div { overflow: hidden; }
+
+/* 브랜드 — 스플래시를 다시 부르는 자리라는 걸 손끝에 알려준다 */
+.brand-replay {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; text-align: left;
+  border-radius: 4px;
+  transition: opacity var(--dur) var(--ease);
+}
+.brand-replay:hover { opacity: 0.62; }
+.brand-replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* 애니메이션이 꺼져도 끝 상태는 보여야 한다 */
+  .splash-lead, .splash-dedication { opacity: 1; filter: none; transform: none; }
+  .splash.out { opacity: 0; clip-path: none; }
+}
+
+@media (max-width: 640px) {
+  main { padding: 1rem 0.75rem 3rem; gap: 1rem; }
+  .topbar { padding: 0.625rem 0.875rem; gap: 0.625rem; }
+  .brand span { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- 첫 진입 장면. JS 가 죽으면 hidden 인 채로 남아 대시보드를 가리지 않는다. -->
+<div class="splash" id="splash" hidden>
+  <div class="splash-stage">
+    <div class="slots" id="slots" aria-hidden="true"></div>
+    <div class="counter">
+      <p class="counter-val" id="counterVal" style="--pos:14"><span id="counterNum">15</span><em>위</em></p>
+    </div>
+    <div class="splash-copy">
+      <p class="splash-lead">이제 순위는 일일이 세지 않아도 됩니다</p>
+      <p class="splash-dedication">
+        <span>땡쥬의 업무자동화를 위한</span>
+        <strong>개발자 남자친구의 작품</strong>
+      </p>
+    </div>
+  </div>
+  <button class="splash-skip" type="button" id="splashSkip">건너뛰기</button>
+</div>
+<script>
+  // 대시보드가 잠깐 비쳤다가 가려지는 걸 막으려면 여기서 바로 켜야 한다.
+  (function () {
+    try {
+      if (!sessionStorage.getItem("splashSeen")) document.getElementById("splash").hidden = false;
+    } catch (_) { /* 프라이빗 모드 등에서 sessionStorage 가 막히면 그냥 건너뛴다 */ }
+  })();
+</script>
+
+<header class="topbar">
+  <div class="brand">
+    <button class="brand-replay" id="brandReplay" type="button" title="처음 화면 다시 보기">
+      <h1>파워링크 노출순위 모니터</h1>
+    </button>
+    <span>m.ad.search.naver.com · 모바일 기준</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="sched" id="sched" data-on="0" title="자동 수집 상태">
+    <i class="dot"></i><span id="schedText">상태 확인 중</span>
+  </div>
+</header>
+
+<main>
+  <!-- ── 조회 ───────────────────────────────────────────────── -->
+  <section class="panel">
+    <header>
+      <h2>순위 조회</h2>
+      <div class="spacer"></div>
+      <span class="hint" id="repeatHint"></span>
+    </header>
+    <div class="panel-body">
+      <div class="field">
+        <label class="lbl" for="kw">키워드</label>
+        <textarea id="kw" placeholder="중고차팔기, 내차팔기, 내차시세조회&#10;&#10;콤마·줄바꿈으로 구분합니다. 엑셀에서 셀을 여러 개 복사해 그대로 붙여넣어도 됩니다."></textarea>
+        <p class="hint">비워두고 조회하면 설정에 저장된 키워드 목록을 사용합니다.</p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="go" type="button">순위 조회</button>
+        <button class="btn" id="useSaved" type="button">저장된 키워드 불러오기</button>
+        <div class="spacer"></div>
+        <button class="btn" id="saveKw" type="button">이 키워드를 자동수집 목록으로 저장</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 결과 ───────────────────────────────────────────────── -->
+  <section class="panel">
+    <header>
+      <h2>결과</h2>
+      <div class="spacer"></div>
+      <span class="hint" id="resultMeta"></span>
+    </header>
+    <div id="result">
+      <div class="empty">
+        <h3>아직 조회한 순위가 없습니다</h3>
+        <p>위에 키워드를 넣고 <strong>순위 조회</strong>를 누르면, 키워드별로 추적 업체가 파워링크에서 몇 위에 노출되는지 표로 정리됩니다. 키워드를 눌러 광고 목록 전체를 펼쳐 볼 수도 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 분석 ───────────────────────────────────────────────── -->
+  <!-- 필터는 아래 모든 차트를 함께 바꾸는 한 줄이다. 차트마다 따로 두지 않는다. -->
+  <section class="filterbar" id="filterbar" hidden>
+    <span class="fb-title">분석</span>
+    <label class="sr" for="fHours">기간</label>
+    <select id="fHours">
+      <option value="24">최근 24시간</option>
+      <option value="72" selected>최근 3일</option>
+      <option value="168">최근 7일</option>
+      <option value="720">최근 30일</option>
+    </select>
+    <label class="sr" for="fKeyword">추이를 볼 키워드</label>
+    <select id="fKeyword"></select>
+    <div class="spacer"></div>
+    <span class="hint" id="fMeta"></span>
+    <a class="btn" id="reportBtn" href="/api/report.html?hours=72" download>리포트(HTML)</a>
+    <a class="btn" id="xlsxBtn" href="/api/export.xlsx?hours=72" download>리포트(엑셀)</a>
+  </section>
+
+  <section class="panel" id="analysisWrap">
+    <div class="viz" id="kpiRow"></div>
+    <div class="chart-grid">
+      <div class="chart-cell" id="chartHeatmap"></div>
+      <div class="chart-cell" id="chartDumbbell"></div>
+      <div class="chart-cell" id="chartTrend"></div>
+      <div class="chart-cell" id="chartHourly"></div>
+    </div>
+    <div id="analysisEmpty" class="empty">
+      <h3>분석할 이력이 아직 없습니다</h3>
+      <p>순위를 한 번 조회하면 KPI와 히트맵이, 두 번 이상 조회하거나 자동 수집이 돌면 추이·변화·시간대 분석이 채워집니다.</p>
+    </div>
+  </section>
+
+  <!-- ── 설정 ───────────────────────────────────────────────── -->
+  <section class="panel">
+    <details class="settings" id="settings">
+      <summary>
+        <svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        설정
+      </summary>
+      <div class="panel-body">
+        <div class="grid2">
+          <div class="field">
+            <label class="lbl" for="cfgKeywords">자동수집 키워드</label>
+            <textarea id="cfgKeywords" placeholder="중고차팔기, 내차팔기"></textarea>
+            <p class="hint">매시 자동 수집이 이 목록을 사용합니다.</p>
+          </div>
+          <div class="field">
+            <span class="lbl">추적 업체</span>
+            <div class="targets" id="targets"></div>
+            <div>
+              <button class="btn" id="addTarget" type="button">업체 추가</button>
+            </div>
+            <p class="hint">첫 번째 업체가 기준 업체로 표에서 강조됩니다. 매칭어는 업체명·도메인에 대해 부분 일치로 판정합니다(콤마 구분).</p>
+          </div>
+        </div>
+
+        <div class="grid2" style="margin-top:1rem">
+          <div class="field">
+            <label class="lbl" for="cfgRepeat">반복 측정 횟수</label>
+            <input type="number" id="cfgRepeat" min="1" max="5" />
+            <p class="hint">파워링크는 호출할 때마다 광고가 로테이션됩니다. 여러 번 조회해 중앙값을 순위로 씁니다.</p>
+          </div>
+          <div class="field">
+            <label class="lbl" for="cfgMinute">자동 수집 시각</label>
+            <input type="number" id="cfgMinute" min="0" max="59" />
+            <p class="hint">매시 이 분(分)에 자동 수집합니다.</p>
+          </div>
+          <div class="field">
+            <label class="lbl" for="cfgWorkers">동시 요청 수</label>
+            <input type="number" id="cfgWorkers" min="1" max="10" />
+            <p class="hint">과도하게 올리면 네이버 쪽에서 차단될 수 있습니다. 5 권장.</p>
+          </div>
+          <div class="field">
+            <label class="lbl" for="cfgPages">최대 조회 페이지</label>
+            <input type="number" id="cfgPages" min="1" max="30" />
+            <p class="hint">1페이지당 15위. 10이면 150위까지 확인합니다.</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <label class="switch"><input type="checkbox" id="cfgSchedule" /> 매시 자동 수집 사용</label>
+          <div class="spacer"></div>
+          <button class="btn" id="runNow" type="button">지금 자동수집 1회 실행</button>
+          <button class="btn primary" id="saveCfg" type="button">설정 저장</button>
+        </div>
+      </div>
+    </details>
+  </section>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script src="/static/charts.js"></script>
+<script>
+"use strict";
+
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+
+const state = { cfg: null, results: [], detail: new Map(), busy: false, analysis: null, lastRanks: new Map() };
+
+const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+/* ═══════════════════════════════════════════════════════════ 스플래시 */
+const SLOT_COUNT = 15;   // 모바일 파워링크 1페이지 노출 개수
+const SLOT_PITCH = 18;   // 칸 높이 12px + 간격 6px
+
+const splash = {
+  el: $("#splash"),
+  raf: 0,
+  timer: 0,
+
+  build() {
+    const slots = $("#slots");
+    if (slots.children.length) return;
+    slots.innerHTML = Array.from({ length: SLOT_COUNT },
+      () => `<i class="slot"></i>`).join("");
+  },
+
+  paint(pos) {
+    // pos 는 0(1위) ~ 14(15위) 사이의 연속값. 마커와 숫자가 같은 값을 본다.
+    const idx = Math.round(pos);
+    $("#counterVal").style.setProperty("--pos", pos.toFixed(3));
+    $("#counterNum").textContent = String(idx + 1);
+    $$("#slots .slot").forEach((s, i) => {
+      s.classList.toggle("here", i === idx);
+      s.classList.toggle("passed", i > idx);
+    });
+  },
+
+  run() {
+    this.build();
+    this.el.hidden = false;
+    this.el.classList.remove("out", "reveal");
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.timer);
+
+    if (REDUCED.matches) {
+      this.paint(0);
+      this.el.classList.add("reveal");
+      this.timer = setTimeout(() => this.close(), 1600);
+      return;
+    }
+
+    this.paint(SLOT_COUNT - 1);
+    const COUNT_MS = 1150;
+    const start = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / COUNT_MS);
+      // 감속해서 1위에 안착한다. 도착이 또렷해야 한다.
+      const eased = 1 - Math.pow(1 - t, 3);
+      this.paint((SLOT_COUNT - 1) * (1 - eased));
+      if (t < 1) { this.raf = requestAnimationFrame(tick); return; }
+      this.el.classList.add("reveal");
+      this.timer = setTimeout(() => this.close(), 1750);
+    };
+    this.raf = requestAnimationFrame(tick);
+  },
+
+  close() {
+    cancelAnimationFrame(this.raf);
+    clearTimeout(this.timer);
+    if (this.el.hidden || this.el.classList.contains("out")) return;
+    this.el.classList.add("out");
+    try { sessionStorage.setItem("splashSeen", "1"); } catch (_) {}
+    setTimeout(() => { this.el.hidden = true; }, REDUCED.matches ? 60 : 480);
+  },
+
+  init() {
+    if (!this.el.hidden) this.run();
+    $("#splashSkip").addEventListener("click", () => this.close());
+    this.el.addEventListener("click", (e) => {
+      if (e.target !== $("#splashSkip")) this.close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (!this.el.hidden && (e.key === "Escape" || e.key === " " || e.key === "Enter")) this.close();
+    });
+    $("#brandReplay").addEventListener("click", () => this.run());
+  },
+};
+splash.init();
+
+/* ──────────────────────────────────────────────────────── 유틸 */
+function toast(msg, isError = false) {
+  const el = $("#toast");
+  el.textContent = msg;
+  el.style.background = isError ? "var(--danger)" : "var(--ink)";
+  el.style.color = isError ? "oklch(0.99 0 0)" : "var(--bg)";
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove("show"), 2800);
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, {
+    headers: { "Content-Type": "application/json" },
+    ...opts,
+  });
+  if (!res.ok) {
+    let msg = `요청 실패 (${res.status})`;
+    try { const j = await res.json(); if (j.detail) msg = j.detail; } catch (_) {}
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+const hhmm = (iso) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+/* 순위 밴드: 1~5 상위, 6~15 첫 페이지(더보기 없이 보임), 16+ 더보기 필요 */
+function rankClass(rank) {
+  if (rank === null || rank === undefined) return "out";
+  if (rank <= 5) return "top";
+  if (rank <= 15) return "first";
+  return "deep";
+}
+function rankLabel(rank) {
+  if (rank === null || rank === undefined) return "순위밖";
+  return `${rank}<em>위</em>`;
+}
+
+/* ──────────────────────────────────────────────────────── 설정 */
+function renderTargets() {
+  const wrap = $("#targets");
+  wrap.innerHTML = "";
+  state.cfg.targets.forEach((t, i) => {
+    const row = document.createElement("div");
+    row.className = "trow";
+    row.innerHTML = `
+      <input type="text" value="${esc(t.name)}" data-k="name" aria-label="업체명 ${i + 1}" placeholder="업체명" />
+      <input type="text" value="${esc((t.patterns || []).join(", "))}" data-k="patterns" aria-label="매칭어 ${i + 1}" placeholder="매칭어 (콤마 구분)" />
+      <button class="icon-btn" type="button" aria-label="${esc(t.name)} 삭제">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>`;
+    row.querySelector(".icon-btn").addEventListener("click", () => {
+      state.cfg.targets.splice(i, 1);
+      renderTargets();
+    });
+    wrap.appendChild(row);
+  });
+  if (!state.cfg.targets.length) {
+    wrap.innerHTML = `<p class="hint">추적할 업체를 하나 이상 추가해 주세요.</p>`;
+  }
+}
+
+function readTargets() {
+  return $$("#targets .trow").map((row) => {
+    const name = row.querySelector('[data-k="name"]').value.trim();
+    const pats = row.querySelector('[data-k="patterns"]').value
+      .split(",").map((s) => s.trim()).filter(Boolean);
+    return { name, patterns: pats.length ? pats : [name] };
+  }).filter((t) => t.name);
+}
+
+function fillConfigForm() {
+  const c = state.cfg;
+  $("#cfgKeywords").value = c.keywords.join(", ");
+  $("#cfgRepeat").value = c.repeat;
+  $("#cfgMinute").value = c.schedule_minute;
+  $("#cfgWorkers").value = c.max_workers;
+  $("#cfgPages").value = c.max_pages;
+  $("#cfgSchedule").checked = c.schedule_enabled;
+  $("#repeatHint").textContent = `키워드당 ${c.repeat}회 측정 후 중앙값`;
+  renderTargets();
+}
+
+async function loadConfig() {
+  state.cfg = await api("/api/config");
+  fillConfigForm();
+}
+
+async function saveConfig() {
+  const btn = $("#saveCfg");
+  btn.disabled = true;
+  try {
+    const body = {
+      keywords: $("#cfgKeywords").value.split(/[,\n\r\t;]+/).map((s) => s.trim()).filter(Boolean),
+      targets: readTargets(),
+      repeat: Number($("#cfgRepeat").value),
+      max_workers: Number($("#cfgWorkers").value),
+      max_pages: Number($("#cfgPages").value),
+      schedule_enabled: $("#cfgSchedule").checked,
+      schedule_minute: Number($("#cfgMinute").value),
+    };
+    state.cfg = await api("/api/config", { method: "POST", body: JSON.stringify(body) });
+    fillConfigForm();
+    await loadStatus();
+    toast("설정을 저장했습니다.");
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ──────────────────────────────────────────────────────── 조회 */
+async function search() {
+  if (state.busy) return;
+  const btn = $("#go");
+  state.busy = true;
+  btn.disabled = true;
+  btn.innerHTML = `<i class="spin"></i>조회 중`;
+
+  const rows = Math.max(3, ($("#kw").value.split(/[,\n\r\t;]+/).filter((s) => s.trim()).length) || state.cfg.keywords.length);
+  $("#result").innerHTML =
+    `<div class="skel">${'<i></i>'.repeat(Math.min(rows + 1, 10))}</div>`;
+  $("#resultMeta").textContent = "";
+
+  try {
+    const data = await api("/api/search", {
+      method: "POST",
+      body: JSON.stringify({ keywords: $("#kw").value, save: true }),
+    });
+    state.results = data.results;
+    state.detail.clear();
+    renderResults(data);
+    await loadAnalytics(data.keywords[0]);
+  } catch (e) {
+    $("#result").innerHTML = `<div class="note err">${esc(e.message)}</div>`;
+    toast(e.message, true);
+  } finally {
+    state.busy = false;
+    btn.disabled = false;
+    btn.textContent = "순위 조회";
+  }
+}
+
+function renderResults(data) {
+  const targets = data.targets;
+  const rows = data.results;
+  if (!rows.length) {
+    $("#result").innerHTML = `<div class="empty"><h3>결과가 없습니다</h3><p>키워드를 확인해 주세요.</p></div>`;
+    return;
+  }
+
+  const head = `<tr>
+      <th>키워드</th>
+      ${targets.map((t, i) => `<th class="num ${i === 0 ? "primary-col" : ""}">${esc(t)}</th>`).join("")}
+      <th class="num">전체 광고</th>
+      <th>조회시각</th>
+    </tr>`;
+
+  const body = rows.map((r, ri) => {
+    const cells = targets.map((t, i) => {
+      const tr = r.ranks.find((x) => x.target === t);
+      const rank = tr ? tr.rank : null;
+      const shift = tr && tr.unstable
+        ? `<span class="tag shift" title="측정값 ${tr.samples.map((s) => s ?? "밖").join(" / ")}">변동</span>` : "";
+      // 직전 조회와 값이 달라진 칸만 잠깐 물들여 시선을 먼저 보낸다
+      const key = `${r.keyword}|${t}`;
+      const changed = state.lastRanks.has(key) && state.lastRanks.get(key) !== rank;
+      state.lastRanks.set(key, rank);
+      return `<td class="num ${i === 0 ? "primary-col" : ""}${changed ? " changed" : ""}">
+                <span class="rank ${rankClass(rank)}">${rankLabel(rank)}</span>${shift}
+              </td>`;
+    }).join("");
+
+    // 목록이 목록으로 나타나는 순간에만 쓰는 스태거. 총 지연은 216ms 를 넘기지 않는다.
+    return `<tr class="kw-row" data-i="${ri}" style="animation-delay:${Math.min(ri, 8) * 24}ms">
+        <td>
+          <button class="kw" type="button" aria-expanded="false" data-kw="${esc(r.keyword)}" data-i="${ri}">
+            <svg class="chev" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${esc(r.keyword)}
+          </button>
+          ${r.error ? `<span class="tag" style="color:var(--danger);border-color:var(--danger)">수집오류</span>` : ""}
+        </td>
+        ${cells}
+        <td class="num">${r.total_ads || "-"}</td>
+        <td>${hhmm(r.fetched_at)}</td>
+      </tr>
+      <tr class="detail" data-detail="${ri}" hidden>
+        <td colspan="${targets.length + 3}"><div class="detail-shell"><div></div></div></td>
+      </tr>`;
+  }).join("");
+
+  $("#result").innerHTML = `
+    <div class="tablewrap"><table>
+      <caption class="sr">키워드별 파워링크 노출순위</caption>
+      <thead>${head}</thead><tbody>${body}</tbody>
+    </table></div>
+    <div class="note">
+      순위는 <strong>모바일 파워링크</strong> 기준이며 1페이지에 15개가 노출됩니다.
+      16위 이상은 사용자가 '더보기'를 눌러야 보이는 자리입니다.
+      <span class="tag shift">변동</span> 표시는 반복 측정 사이에 순위가 흔들린 키워드입니다.
+    </div>`;
+
+  $("#resultMeta").textContent = `${rows.length}개 키워드 · ${data.elapsed_sec}초`;
+
+  $$("#result .kw").forEach((b) => b.addEventListener("click", () => toggleDetail(b)));
+}
+
+/* 상세는 모달 대신 행 아래로 펼친다. */
+async function toggleDetail(btn) {
+  const i = btn.dataset.i;
+  const kw = btn.dataset.kw;
+  const row = $(`#result tr[data-detail="${i}"]`);
+  const cell = row.querySelector(".detail-shell > div");
+  const open = btn.getAttribute("aria-expanded") === "true";
+
+  if (open) {
+    btn.setAttribute("aria-expanded", "false");
+    row.classList.remove("open");
+    // 접히는 동안은 행이 남아 있어야 트랙이 줄어드는 게 보인다
+    setTimeout(() => { if (!row.classList.contains("open")) row.hidden = true; }, 320);
+    return;
+  }
+  btn.setAttribute("aria-expanded", "true");
+  row.hidden = false;
+  requestAnimationFrame(() => row.classList.add("open"));
+
+  if (state.detail.has(kw)) {
+    cell.innerHTML = state.detail.get(kw);
+    return;
+  }
+  cell.innerHTML = `<div class="skel"><i></i><i></i><i></i></div>`;
+  try {
+    const d = await api(`/api/detail?keyword=${encodeURIComponent(kw)}`);
+    const html = `<div class="detail-inner">
+        <p class="hint" style="margin-bottom:.5rem">
+          '${esc(d.keyword)}' 파워링크 전체 ${d.total_ads}개 · ${hhmm(d.fetched_at)} 기준
+        </p>
+        <div class="adlist">${d.items.map((it) => `
+          <div class="ad ${it.is_target.length ? "hit" : ""}">
+            <div class="r">${it.rank}</div>
+            <div>
+              <div><span class="site">${esc(it.site || "(업체명 없음)")}</span>
+                   <span class="dom">${esc(it.domain)}</span>
+                   ${it.is_target.map((n) => `<span class="tag">${esc(n)}</span>`).join("")}</div>
+              <div class="tt">${esc(it.title)}</div>
+            </div>
+          </div>`).join("")}
+        </div>
+      </div>`;
+    state.detail.set(kw, html);
+    cell.innerHTML = html;
+  } catch (e) {
+    cell.innerHTML = `<div class="note err">${esc(e.message)}</div>`;
+  }
+}
+
+/* ─────────────────────────────────────────────────────── 분석 & 차트 */
+function analysisHours() { return Number($("#fHours").value) || 72; }
+
+function syncExportLinks() {
+  const h = analysisHours();
+  $("#reportBtn").href = `/api/report.html?hours=${h}`;
+  $("#xlsxBtn").href = `/api/export.xlsx?hours=${h}`;
+}
+
+function fillTrendKeywords(analysis, prefer) {
+  const sel = $("#fKeyword");
+  const prev = prefer || sel.value;
+  const list = Object.keys(analysis.trend || {});
+  sel.innerHTML = list.map((k) => `<option value="${esc(k)}">${esc(k)}</option>`).join("");
+  if (list.includes(prev)) sel.value = prev;
+  return sel.value;
+}
+
+/* 서버가 KPI·히트맵·변화·시간대·추이를 한 번에 계산해 준다. */
+async function loadAnalytics(preferKeyword) {
+  syncExportLinks();
+  const wrap = $("#analysisWrap");
+  try {
+    const a = await api(`/api/analytics?hours=${analysisHours()}`);
+    state.analysis = a;
+    $("#filterbar").hidden = false;
+    $("#analysisEmpty").hidden = true;
+    wrap.querySelector(".chart-grid").hidden = false;
+    $("#fMeta").textContent =
+      `${a.current.length}개 키워드 · 측정 ${a.sample_count}건${a.kpi.compared ? "" : " · 직전 비교 대기"}`;
+
+    Viz.renderKpis($("#kpiRow"), a.kpi, a.kpi_spark);
+    Viz.renderHeatmap($("#chartHeatmap"), { heatmap: a.heatmap, firstPage: a.first_page });
+    Viz.renderDumbbell($("#chartDumbbell"), { current: a.current, primary: a.primary, firstPage: a.first_page });
+    Viz.renderHourly($("#chartHourly"), { hourly: a.hourly, primary: a.primary, firstPage: a.first_page });
+    drawTrend(fillTrendKeywords(a, preferKeyword));
+  } catch (e) {
+    state.analysis = null;
+    $("#filterbar").hidden = false;
+    wrap.querySelector(".chart-grid").hidden = true;
+    $("#kpiRow").innerHTML = "";
+    $("#analysisEmpty").hidden = false;
+    $("#fMeta").textContent = "";
+    $("#analysisEmpty").querySelector("p").textContent =
+      e.message.includes("이력") ? e.message : `분석을 불러오지 못했습니다: ${e.message}`;
+  }
+}
+
+function drawTrend(keyword) {
+  const a = state.analysis;
+  if (!a || !keyword) return;
+  Viz.renderTrend($("#chartTrend"), {
+    keyword,
+    series: a.trend[keyword] || {},
+    targets: a.targets,
+    firstPage: a.first_page,
+  });
+}
+
+/* ──────────────────────────────────────────────────── 상태 표시 */
+async function loadStatus() {
+  try {
+    const s = await api("/api/status");
+    const sc = s.scheduler;
+    const el = $("#sched");
+    el.dataset.on = sc.enabled && sc.running ? "1" : "0";
+    if (!sc.enabled) {
+      $("#schedText").textContent = "자동 수집 꺼짐";
+    } else if (sc.last_run_at) {
+      $("#schedText").textContent = `자동 수집 · 최근 ${hhmm(sc.last_run_at)} · 다음 ${sc.next_run_at ? hhmm(sc.next_run_at) : "-"}`;
+    } else {
+      $("#schedText").textContent = `자동 수집 대기 · 다음 ${sc.next_run_at ? hhmm(sc.next_run_at) : "-"}`;
+    }
+    if (sc.last_error) el.title = `최근 오류: ${sc.last_error}`;
+  } catch (_) {
+    $("#schedText").textContent = "서버 연결 끊김";
+    $("#sched").dataset.on = "0";
+  }
+}
+
+/* ──────────────────────────────────────────────────────── 바인딩 */
+$("#go").addEventListener("click", search);
+$("#kw").addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") search();
+});
+$("#useSaved").addEventListener("click", () => {
+  $("#kw").value = (state.cfg?.keywords || []).join(", ");
+  $("#kw").focus();
+});
+$("#saveKw").addEventListener("click", async () => {
+  const list = $("#kw").value.split(/[,\n\r\t;]+/).map((s) => s.trim()).filter(Boolean);
+  if (!list.length) return toast("저장할 키워드가 없습니다.", true);
+  try {
+    state.cfg = await api("/api/config", { method: "POST", body: JSON.stringify({ keywords: list }) });
+    fillConfigForm();
+    toast(`키워드 ${list.length}개를 자동수집 목록으로 저장했습니다.`);
+  } catch (e) { toast(e.message, true); }
+});
+$("#addTarget").addEventListener("click", () => {
+  state.cfg.targets = readTargets();
+  state.cfg.targets.push({ name: "", patterns: [] });
+  renderTargets();
+  const rows = $$("#targets .trow");
+  rows[rows.length - 1]?.querySelector("input")?.focus();
+});
+$("#saveCfg").addEventListener("click", saveConfig);
+$("#runNow").addEventListener("click", async () => {
+  const btn = $("#runNow");
+  btn.disabled = true;
+  btn.innerHTML = `<i class="spin"></i>수집 중`;
+  try {
+    await api("/api/run-now", { method: "POST" });
+    await loadStatus();
+    await loadAnalytics();
+    toast("자동 수집을 1회 실행했습니다.");
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = "지금 자동수집 1회 실행"; }
+});
+$("#fKeyword").addEventListener("change", (e) => drawTrend(e.target.value));
+$("#fHours").addEventListener("change", () => loadAnalytics());
+window.addEventListener("scroll", () => Viz.hideTip(), { passive: true });
+
+/* ──────────────────────────────────────────────────────── 시작 */
+(async function init() {
+  await loadConfig();
+  await loadStatus();
+  await loadAnalytics();
+  setInterval(loadStatus, 60_000);
+
+  // ?q=중고차팔기,내차팔기 로 열면 바로 조회한다. 즐겨찾기로 걸어두고 쓸 수 있다.
+  const q = new URLSearchParams(location.search).get("q");
+  if (q) {
+    $("#kw").value = q;
+    await search();
+  }
+})();
+</script>
+</body>
+</html>
