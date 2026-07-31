@@ -1,5 +1,6 @@
-# 수집 이력 (로컬 데이터 — 각자 환경에서 쌓인다)
-data/
+# 로컬 SQLite 는 커밋하지 않는다. 이력은 git 친화적인 JSONL 로만 남긴다.
+data/*
+!data/history.jsonl
 *.db
 *.db-shm
 *.db-wal
@@ -12,8 +13,9 @@ venv/
 env/
 *.egg-info/
 
-# 내보낸 리포트
+# 손으로 내려받은 리포트 (docs/report.xlsx 는 자동 생성물이라 예외)
 *.xlsx
+!docs/report.xlsx
 파워링크리포트*.html
 powerlink_*.html
 

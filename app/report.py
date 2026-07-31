@@ -161,7 +161,7 @@ def _volatility_table(analysis: dict) -> str:
     )
 
 
-def render(analysis: dict, window_hours: int) -> str:
+def render(analysis: dict, window_hours: int, xlsx_href: str | None = None) -> str:
     primary = analysis["primary"]
     hourly = analysis.get("hourly") or {}
     best, worst = hourly.get("best_hour"), hourly.get("worst_hour")
@@ -195,6 +195,7 @@ def render(analysis: dict, window_hours: int) -> str:
     <h1>네이버 파워링크 노출순위 리포트</h1>
     <p>기준 업체 <strong>{_esc(primary)}</strong> · 최근 {window_hours}시간 ·
        생성 {datetime.now():%Y-%m-%d %H:%M} · 모바일 파워링크(1페이지 {analysis['first_page']}개) 기준</p>
+    {f'<p><a href="{_esc(xlsx_href)}" download>엑셀로 내려받기</a></p>' if xlsx_href else ''}
   </header>
 
   <section class="card viz" id="kpi"></section>

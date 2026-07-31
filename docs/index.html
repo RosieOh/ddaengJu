@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>파워링크 노출순위 리포트 — 엔카</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: oklch(0.978 0 0);
+  --surface: oklch(1 0 0);
+  --surface-sunk: oklch(0.962 0 0);
+  --line: oklch(0.905 0 0);
+  --line-soft: oklch(0.945 0 0);
+  --ink: oklch(0.24 0 0);
+  --ink-2: oklch(0.44 0 0);
+  --ink-3: oklch(0.56 0 0);
+  --accent: oklch(0.53 0.155 34);
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: oklch(0.185 0 0);
+    --surface: oklch(0.225 0 0);
+    --surface-sunk: oklch(0.205 0 0);
+    --line: oklch(0.325 0 0);
+    --line-soft: oklch(0.275 0 0);
+    --ink: oklch(0.945 0 0);
+    --ink-2: oklch(0.80 0 0);
+    --ink-3: oklch(0.685 0 0);
+    --accent: oklch(0.72 0.14 38);
+  }
+}
+* , *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+               "Malgun Gothic", "Apple SD Gothic Neo", Roboto, sans-serif;
+  font-size: 0.875rem; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.25rem 4rem; display: grid; gap: 1.25rem; }
+header.rpt { display: grid; gap: 0.3125rem; padding-bottom: 0.5rem; }
+header.rpt h1 { margin: 0; font-size: 1.25rem; font-weight: 640; letter-spacing: -0.015em; }
+header.rpt p { margin: 0; color: var(--ink-3); font-size: 0.8125rem; }
+section.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+section.card > h2 {
+  margin: 0; padding: 0.875rem 1rem; font-size: 0.9375rem; font-weight: 620;
+  border-bottom: 1px solid var(--line-soft);
+}
+.plain { padding: 1rem; overflow-x: auto; }
+.plain table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.plain th, .plain td {
+  padding: 0.4375rem 0.625rem; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid var(--line-soft);
+}
+.plain th:first-child, .plain td:first-child { text-align: left; }
+.plain thead th { color: var(--ink-2); font-weight: 600; font-size: 0.75rem; }
+.plain td { font-variant-numeric: tabular-nums; }
+.plain tbody tr:last-child td { border-bottom: 0; }
+.muted { color: var(--ink-3); }
+.foot { color: var(--ink-3); font-size: 0.75rem; padding: 0 0.25rem; }
+.trend-stack { display: grid; gap: 1.25rem; }
+@media print {
+  body { background: #fff; }
+  section.card { break-inside: avoid; border-color: #ddd; }
+  .viz-toggle { display: none; }
+}
+</style>
+<style>/* ───────────────────────────────────────────────────────────────────────────
+   시각화 토큰 & 차트 크롬.
+   index.html 과 단독 HTML 리포트가 같은 파일을 공유한다.
+
+   범주형 팔레트는 validate_palette.js 로 검증했다.
+     라이트(표면 #ffffff) : 밝기대·채도·CVD 분리·정상시야 분리 통과,
+                            aqua/yellow/magenta 는 3:1 미만 → 직접 라벨 + 표 보기로 보완
+     다크 (표면 #1c1c1c) : 전 항목 통과
+   슬롯 순서 자체가 CVD 안전장치이므로 임의로 바꾸지 말 것.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.viz {
+  --viz-s1: #2a78d6;  /* blue    — 기준 업체 */
+  --viz-s2: #eb6834;  /* orange  */
+  --viz-s3: #1baf7a;  /* aqua    */
+  --viz-s4: #eda100;  /* yellow  */
+  --viz-s5: #e87ba4;  /* magenta */
+  --viz-s6: #008300;  /* green   */
+  --viz-s7: #4a3aa7;  /* violet  */
+  --viz-s8: #e34948;  /* red     */
+
+  /* 단일 색상 순차 램프 (히트맵·덤벨). 값이 클수록 진하다. */
+  --viz-q1: #cde2fb;
+  --viz-q2: #9ec5f4;
+  --viz-q3: #6da7ec;
+  --viz-q4: #3987e5;
+  --viz-q5: #256abf;
+  --viz-q6: #184f95;
+  --viz-q7: #0d366b;
+
+  --viz-before: #86b6ef;   /* 덤벨: 직전 */
+  --viz-after:  #1c5cab;   /* 덤벨: 현재 */
+
+  --viz-good: #006300;     /* 순위 상승 */
+  --viz-bad:  #d03b3b;     /* 순위 하락 */
+
+  --viz-ink:   var(--ink, #0b0b0b);
+  --viz-ink-2: var(--ink-2, #52514e);
+  --viz-muted: var(--ink-3, #898781);
+  --viz-grid:  #e1e0d9;
+  --viz-axis:  #c3c2b7;
+  --viz-surface: var(--surface, #ffffff);
+}
+
+@media (prefers-color-scheme: dark) {
+  .viz {
+    --viz-s1: #3987e5;
+    --viz-s2: #d95926;
+    --viz-s3: #199e70;
+    --viz-s4: #c98500;
+    --viz-s5: #d55181;
+    --viz-s6: #008300;
+    --viz-s7: #9085e9;
+    --viz-s8: #e66767;
+
+    --viz-q1: #0d366b;
+    --viz-q2: #184f95;
+    --viz-q3: #256abf;
+    --viz-q4: #3987e5;
+    --viz-q5: #6da7ec;
+    --viz-q6: #9ec5f4;
+    --viz-q7: #cde2fb;
+
+    --viz-before: #256abf;
+    --viz-after:  #9ec5f4;
+
+    --viz-good: #0ca30c;
+    --viz-bad:  #d03b3b;
+
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────── 차트 공통 */
+.viz svg { display: block; width: 100%; height: auto; overflow: visible; }
+.viz text { font-family: inherit; fill: var(--viz-muted); font-size: 10px; }
+.viz .v-label { fill: var(--viz-ink-2); font-size: 10px; font-weight: 560; }
+.viz .v-grid { stroke: var(--viz-grid); stroke-width: 1; }
+.viz .v-axis { stroke: var(--viz-axis); stroke-width: 1; }
+.viz .v-thresh { stroke: var(--viz-axis); stroke-width: 1; stroke-dasharray: 4 4; }
+.viz .v-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.viz .v-dot { stroke: var(--viz-surface); stroke-width: 2; }
+.viz .v-hit { fill: transparent; cursor: crosshair; }
+
+.viz-legend {
+  display: flex; flex-wrap: wrap; gap: 0.25rem 1rem;
+  padding: 0 1rem 0.625rem;
+}
+.viz-legend button {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  background: none; border: 0; padding: 0.125rem 0;
+  font-size: 0.75rem; color: var(--viz-ink-2); cursor: pointer;
+  border-radius: 3px;
+}
+.viz-legend button[aria-pressed="false"] { color: var(--viz-muted); opacity: 0.55; }
+.viz-legend button:focus-visible { outline: 2px solid var(--accent, #2a78d6); outline-offset: 2px; }
+.viz-legend i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+/* 스케일 범례 (순차 램프) */
+.viz-scale { display: flex; align-items: center; gap: 0.5rem; padding: 0 1rem 0.625rem; font-size: 0.75rem; color: var(--viz-ink-2); }
+.viz-scale .ramp { display: flex; gap: 2px; }
+.viz-scale .ramp i { width: 16px; height: 10px; border-radius: 2px; }
+
+/* 툴팁 */
+.viz-tip {
+  position: fixed; z-index: 500; pointer-events: none;
+  padding: 0.4375rem 0.5625rem;
+  background: var(--viz-ink); color: var(--viz-surface);
+  border-radius: 5px; font-size: 0.75rem; line-height: 1.45;
+  white-space: nowrap; opacity: 0;
+  transition: opacity 120ms ease-out;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.viz-tip.on { opacity: 1; }
+.viz-tip b { font-weight: 620; }
+.viz-tip .row { display: flex; align-items: center; gap: 0.375rem; }
+.viz-tip .row i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
+
+/* 차트 ↔ 표 전환 */
+.viz-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.875rem 1rem 0.5rem; }
+.viz-head h3 { margin: 0; font-size: 0.875rem; font-weight: 620; }
+.viz-head .spacer { flex: 1; }
+.viz-head .note { margin: 0; padding: 0; border: 0; background: none; font-size: 0.75rem; color: var(--viz-muted); }
+.viz-toggle {
+  background: none; border: 1px solid var(--line, #ddd); border-radius: 5px;
+  padding: 0.1875rem 0.4375rem; font-size: 0.6875rem; color: var(--viz-ink-2); cursor: pointer;
+}
+.viz-toggle:hover { border-color: var(--viz-ink-2); }
+.viz-toggle:focus-visible { outline: 2px solid var(--accent, #2a78d6); outline-offset: 1px; }
+
+.viz-table { padding: 0 1rem 1rem; overflow-x: auto; }
+.viz-table table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.viz-table th, .viz-table td {
+  padding: 0.3125rem 0.5rem; text-align: right; white-space: nowrap;
+  border-bottom: 1px solid var(--viz-grid);
+}
+.viz-table th:first-child, .viz-table td:first-child { text-align: left; }
+.viz-table thead th { color: var(--viz-ink-2); font-weight: 600; }
+.viz-table td { font-variant-numeric: tabular-nums; color: var(--viz-ink); }
+
+/* 증감 표기 — 색만으로 뜻을 전달하지 않도록 항상 화살표 + 숫자를 함께 쓴다 */
+.viz-delta { font-variant-numeric: tabular-nums; font-size: 0.75rem; font-weight: 560; }
+.viz-delta.up { color: var(--viz-good); }
+.viz-delta.down { color: var(--viz-bad); }
+.viz-delta.flat { color: var(--viz-muted); }
+
+/* KPI 스탯 타일 */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--line, #e5e5e5); }
+.kpi { background: var(--viz-surface); padding: 0.875rem 1rem; display: grid; gap: 0.1875rem; }
+.kpi .k-label { font-size: 0.75rem; color: var(--viz-ink-2); }
+.kpi .k-value { font-size: 1.625rem; font-weight: 620; line-height: 1.15; letter-spacing: -0.02em; }
+.kpi .k-value small { font-size: 0.875rem; font-weight: 560; color: var(--viz-ink-2); margin-left: 1px; }
+.kpi .k-foot { display: flex; align-items: center; gap: 0.5rem; min-height: 18px; }
+.kpi .k-spark { display: block; width: 72px; height: 18px; flex: none; }
+
+/* ─────────────────────────────────────────────────── 데이터가 도착하는 모션
+   선은 왼쪽에서 오른쪽으로 그려지고(시간순), 덤벨의 '현재' 점은 '직전' 자리에서
+   실제 이동 거리만큼 밀려온다. 값의 변화가 곧 움직임이라 장식이 아니다.
+   pathLength="1" 을 쓰므로 경로 길이와 무관하게 같은 속도로 그려진다.        */
+@keyframes viz-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes viz-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes viz-shift { from { transform: translateX(var(--from, 0)); } to { transform: translateX(0); } }
+@keyframes viz-cell { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
+
+.viz .v-line {
+  stroke-dasharray: 1;
+  animation: viz-draw 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.viz .v-dot { animation: viz-appear 260ms ease-out 380ms both; }
+.viz .v-label { animation: viz-appear 320ms ease-out 520ms both; }
+
+.viz .v-move { animation: viz-shift 520ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both; }
+/* SVG 도형은 transform-box 를 지정해야 자기 중심을 기준으로 커진다 */
+.viz .v-cell {
+  transform-box: fill-box; transform-origin: center;
+  animation: viz-cell 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viz-tip { transition: none; }
+  /* 끝 상태는 반드시 남는다 — 모션이 꺼졌다고 선이 사라지면 안 된다 */
+  .viz .v-line { stroke-dasharray: none; animation: none; }
+  .viz .v-dot, .viz .v-label, .viz .v-move, .viz .v-cell { animation: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header class="rpt">
+    <h1>네이버 파워링크 노출순위 리포트</h1>
+    <p>기준 업체 <strong>엔카</strong> · 최근 720시간 ·
+       생성 2026-07-31 19:02 · 모바일 파워링크(1페이지 15개) 기준</p>
+    <p><a href="report.xlsx" download>엑셀로 내려받기</a></p>
+  </header>
+
+  <section class="card viz" id="kpi"></section>
+
+  <section class="card">
+    <h2>현재 노출순위</h2>
+    <div class="plain"><table><thead><tr><th>키워드</th><th>엔카</th><th>헤이딜러</th><th>K다이렉트카</th><th>현대글로비스오토벨</th><th>전체 광고</th><th>엔카 직전 대비</th></tr></thead><tbody><tr><td>중고차팔기</td><td>8위</td><td>1위</td><td>45위</td><td>순위밖</td><td>73</td><td><span class="viz-delta flat">—</span></td></tr><tr><td>내차팔기</td><td>5위</td><td>1위</td><td>33위</td><td>순위밖</td><td>56</td><td><span class="viz-delta flat">—</span></td></tr><tr><td>내차시세조회</td><td>6위</td><td>8위</td><td>22위</td><td>순위밖</td><td>35</td><td><span class="viz-delta flat">—</span></td></tr></tbody></table></div>
+  </section>
+
+  <section class="card viz" id="heatmap"></section>
+  <section class="card viz" id="dumbbell"></section>
+
+  <section class="card viz" id="hourly"></section>
+  
+
+  <div class="trend-stack"><div class="card viz" data-trend="중고차팔기"></div><div class="card viz" data-trend="내차팔기"></div><div class="card viz" data-trend="내차시세조회"></div></div>
+
+  <section class="card">
+    <h2>경쟁 구도 — 엔카보다 위에 있는 업체</h2>
+    <div class="plain"><table><thead><tr><th>키워드</th><th>내 순위</th><th>앞선 경쟁사</th><th style='text-align:left'>상세</th></tr></thead><tbody><tr><td>중고차팔기</td><td>8위</td><td>1</td><td style='text-align:left'>헤이딜러 1위</td></tr><tr><td>내차팔기</td><td>5위</td><td>1</td><td style='text-align:left'>헤이딜러 1위</td></tr><tr><td>내차시세조회</td><td>6위</td><td>0</td><td style='text-align:left'><span class="muted">앞선 경쟁사 없음</span></td></tr></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>순위 변동성</h2>
+    <div class="plain"><p class="muted">표본이 3회 미만이라 아직 계산할 수 없습니다.</p></div>
+  </section>
+
+  <p class="foot">
+    순위는 키워드당 반복 측정 후 중앙값입니다. 파워링크는 호출할 때마다 광고가 로테이션되어
+    순위가 흔들리므로, 단일 시점 값보다 추이와 중앙값을 함께 보셔야 합니다.
+  </p>
+</main>
+
+<script>/* ───────────────────────────────────────────────────────────────────────────
+   공용 차트 모듈 (의존성 없음).
+   웹 대시보드(index.html)와 단독 HTML 리포트가 같은 코드를 쓴다.
+
+   모든 차트는 (1) 범례, (2) 호버 툴팁, (3) 표 보기 쌍둥이를 함께 낸다.
+   라이트 모드에서 3:1 미만인 슬롯이 있어 직접 라벨 + 표 보기가 필수다.
+   ─────────────────────────────────────────────────────────────────────────── */
+(function (global) {
+  "use strict";
+
+  const SLOTS = 8;
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = (() => { let n = 0; return () => `viz${++n}`; })();
+
+  /* 색은 개체(업체)에 붙는다. 필터로 계열이 빠져도 남은 계열의 색은 그대로다. */
+  function colorOf(name, order) {
+    const i = order.indexOf(name);
+    return `var(--viz-s${((i < 0 ? order.length : i) % SLOTS) + 1})`;
+  }
+
+  const RANK_OUT_LABEL = "순위밖";
+  const fmtRank = (r) => (r === null || r === undefined ? RANK_OUT_LABEL : `${r}위`);
+  const hhmm = (iso) => {
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
+  const mmdd = (iso) => {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  /* ─────────────────────────────────────────────────────────────── 툴팁 */
+  let tipEl = null;
+  function tip() {
+    if (!tipEl) {
+      tipEl = document.createElement("div");
+      tipEl.className = "viz-tip";
+      document.body.appendChild(tipEl);
+    }
+    return tipEl;
+  }
+  function showTip(html, ev) {
+    const t = tip();
+    t.innerHTML = html;
+    t.classList.add("on");
+    const pad = 12;
+    const r = t.getBoundingClientRect();
+    let x = ev.clientX + pad;
+    let y = ev.clientY + pad;
+    if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - pad;
+    if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - pad;
+    t.style.left = `${Math.max(8, x)}px`;
+    t.style.top = `${Math.max(8, y)}px`;
+  }
+  function hideTip() { if (tipEl) tipEl.classList.remove("on"); }
+
+  /* ───────────────────────────────────────────────────────── 공통 조립 */
+  function shell(el, { title, note, legend, svg, table, ariaLabel }) {
+    const id = uid();
+    el.classList.add("viz");
+    el.innerHTML = `
+      <div class="viz-head">
+        <h3>${esc(title)}</h3>
+        <div class="spacer"></div>
+        ${note ? `<p class="note">${note}</p>` : ""}
+        <button class="viz-toggle" type="button" aria-expanded="false" aria-controls="${id}">표로 보기</button>
+      </div>
+      ${legend || ""}
+      <div class="viz-plot" style="padding:0 1rem 1rem">
+        <svg viewBox="${svg.viewBox}" role="img" aria-label="${esc(ariaLabel || title)}"
+             style="aspect-ratio:${svg.ratio}${svg.maxWidth ? `;max-width:${svg.maxWidth}px` : ""}">${svg.body}</svg>
+      </div>
+      <div class="viz-table" id="${id}" hidden>${table}</div>`;
+
+    const btn = el.querySelector(".viz-toggle");
+    const tableEl = el.querySelector(`#${id}`);
+    const plot = el.querySelector(".viz-plot");
+    btn.addEventListener("click", () => {
+      const open = tableEl.hidden;
+      tableEl.hidden = !open;
+      plot.hidden = open;
+      btn.setAttribute("aria-expanded", String(open));
+      btn.textContent = open ? "차트로 보기" : "표로 보기";
+    });
+    el.addEventListener("mouseleave", hideTip);
+    return el;
+  }
+
+  function legendBox(names, order, onToggle) {
+    const items = names.map((n) =>
+      `<button type="button" data-name="${esc(n)}" aria-pressed="true">
+         <i style="background:${colorOf(n, order)}"></i>${esc(n)}
+       </button>`).join("");
+    return `<div class="viz-legend" data-toggle="${onToggle ? "1" : "0"}">${items}</div>`;
+  }
+
+  function bindLegend(el, onToggle) {
+    if (!onToggle) return;
+    el.querySelectorAll(".viz-legend button").forEach((b) => {
+      b.addEventListener("click", () => {
+        const on = b.getAttribute("aria-pressed") !== "true";
+        b.setAttribute("aria-pressed", String(on));
+        onToggle(b.dataset.name, on);
+      });
+    });
+  }
+
+  function emptyState(el, title, msg) {
+    el.classList.add("viz");
+    el.innerHTML = `
+      <div class="viz-head"><h3>${esc(title)}</h3></div>
+      <div style="padding:1.5rem 1rem 2rem;text-align:center;color:var(--viz-muted);font-size:.8125rem">
+        ${esc(msg)}
+      </div>`;
+  }
+
+  /* ═══════════════════════════════════════════════════ 1. 순위 추이 (라인) */
+  function renderTrend(el, opts) {
+    const { keyword, series, targets, firstPage = 15 } = opts;
+    const names = targets.filter((t) => (series[t] || []).length);
+    if (!names.length) {
+      return emptyState(el, `'${keyword}' 순위 추이`,
+        "이 키워드의 이력이 아직 없습니다. 순위를 한 번 이상 조회하면 그려집니다.");
+    }
+    const moments = new Set(names.flatMap((n) => series[n].map((p) => p[0])));
+    if (moments.size < 2) {
+      return emptyState(el, `'${keyword}' 순위 추이`,
+        "수집 시점이 한 번뿐이라 추이를 그릴 수 없습니다. 두 번째 수집부터 선이 이어집니다.");
+    }
+
+    const W = 1000, H = 300, PL = 46, PR = 58, PT = 14, PB = 30;
+    const all = names.flatMap((n) => series[n]);
+    const times = all.map((p) => new Date(p[0]).getTime());
+    const t0 = Math.min(...times), t1 = Math.max(...times);
+    const ranks = all.map((p) => p[1]).filter((v) => v !== null);
+    const maxRank = Math.max(firstPage, ...(ranks.length ? ranks : [firstPage]));
+    const OUT = maxRank + Math.max(2, Math.round(maxRank * 0.14));
+
+    const x = (t) => (t1 === t0 ? PL + (W - PL - PR) / 2 : PL + ((t - t0) / (t1 - t0)) * (W - PL - PR));
+    const y = (r) => PT + (((r === null ? OUT : r) - 1) / (OUT - 1)) * (H - PT - PB);
+
+    const ticks = [...new Set([1, 5, firstPage, maxRank].filter((v) => v >= 1 && v <= maxRank))]
+      .sort((a, b) => a - b);
+    let body = ticks.map((r) =>
+      `<line class="v-grid" x1="${PL}" x2="${W - PR}" y1="${y(r).toFixed(1)}" y2="${y(r).toFixed(1)}"/>
+       <text x="${PL - 8}" y="${(y(r) + 3.5).toFixed(1)}" text-anchor="end">${r}위</text>`).join("");
+
+    // 첫 페이지 경계는 그리드가 아니라 기준선이므로 점선 + 라벨로 명시한다.
+    body += `<line class="v-thresh" x1="${PL}" x2="${W - PR}" y1="${y(firstPage).toFixed(1)}" y2="${y(firstPage).toFixed(1)}"/>
+             <text x="${W - PR + 6}" y="${(y(firstPage) + 3.5).toFixed(1)}">첫 페이지</text>
+             <line class="v-thresh" x1="${PL}" x2="${W - PR}" y1="${y(null).toFixed(1)}" y2="${y(null).toFixed(1)}"/>
+             <text x="${PL - 8}" y="${(y(null) + 3.5).toFixed(1)}" text-anchor="end">${RANK_OUT_LABEL}</text>`;
+
+    const endLabels = [];
+    names.forEach((n) => {
+      const pts = series[n].slice().sort((a, b) => new Date(a[0]) - new Date(b[0]));
+      const color = colorOf(n, targets);
+      const d = pts.map((p, i) => `${i ? "L" : "M"}${x(new Date(p[0]).getTime()).toFixed(1)},${y(p[1]).toFixed(1)}`).join(" ");
+      body += `<g data-series="${esc(n)}">
+        <path class="v-line" d="${d}" stroke="${color}" pathLength="1"/>
+        ${pts.map((p) => `<circle class="v-dot" cx="${x(new Date(p[0]).getTime()).toFixed(1)}"
+             cy="${y(p[1]).toFixed(1)}" r="${p[1] === null ? 3 : 4.5}" fill="${color}"
+             fill-opacity="${p[1] === null ? 0.45 : 1}"/>`).join("")}
+      </g>`;
+      // 계열이 4개 이하면 끝점 직접 라벨 (대비가 낮은 슬롯을 보완하는 필수 장치)
+      if (names.length <= 4) {
+        const last = pts[pts.length - 1];
+        endLabels.push({
+          name: n,
+          x: x(new Date(last[0]).getTime()) + 9,
+          y: y(last[1]),
+          text: `${n} ${fmtRank(last[1])}`,
+        });
+      }
+    });
+
+    // 같은 순위로 끝나면 라벨이 포개진다. 위에서부터 최소 간격만큼 밀어낸다.
+    const GAP = 13;
+    endLabels.sort((a, b) => a.y - b.y);
+    endLabels.forEach((lab, i) => {
+      if (i && lab.y - endLabels[i - 1].y < GAP) lab.y = endLabels[i - 1].y + GAP;
+    });
+    const overflow = endLabels.length && endLabels[endLabels.length - 1].y - (H - PB);
+    if (overflow > 0) endLabels.forEach((lab) => { lab.y -= overflow; });
+    endLabels.forEach((lab) => {
+      body += `<text class="v-label" data-label="${esc(lab.name)}" x="${lab.x.toFixed(1)}"
+                y="${(lab.y + 3.5).toFixed(1)}">${esc(lab.text)}</text>`;
+    });
+
+    const stamps = [...new Set(all.map((p) => p[0]))].sort();
+    const spanDays = (t1 - t0) / 86400000;
+    [0, Math.floor(stamps.length / 2), stamps.length - 1].forEach((i, k) => {
+      const s = stamps[i];
+      if (!s) return;
+      body += `<text x="${x(new Date(s).getTime()).toFixed(1)}" y="${H - 8}"
+                text-anchor="${k === 0 ? "start" : k === 2 ? "end" : "middle"}">${
+                  spanDays > 1 ? `${mmdd(s)} ${hhmm(s)}` : hhmm(s)}</text>`;
+    });
+
+    // 시점별 세로 히트존 — 마우스가 근처에만 가도 그 시점 전체를 읽어준다
+    stamps.forEach((s) => {
+      const px = x(new Date(s).getTime());
+      const half = Math.max(12, (W - PL - PR) / Math.max(1, stamps.length) / 2);
+      body += `<rect class="v-hit" data-at="${esc(s)}" x="${(px - half).toFixed(1)}" y="${PT}"
+                width="${(half * 2).toFixed(1)}" height="${H - PT - PB}"/>`;
+    });
+
+    const rows = stamps.map((s) => `<tr><td>${mmdd(s)} ${hhmm(s)}</td>${
+      names.map((n) => {
+        const hit = series[n].find((p) => p[0] === s);
+        return `<td>${hit ? fmtRank(hit[1]) : "-"}</td>`;
+      }).join("")}</tr>`).join("");
+
+    shell(el, {
+      title: `'${keyword}' 순위 추이`,
+      note: "위로 갈수록 상위 노출",
+      legend: legendBox(names, targets, true),
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      table: `<table><thead><tr><th>조회시각</th>${names.map((n) => `<th>${esc(n)}</th>`).join("")}</tr></thead>
+              <tbody>${rows}</tbody></table>`,
+      ariaLabel: `${keyword} 키워드의 업체별 순위 추이`,
+    });
+
+    el.querySelectorAll("rect.v-hit").forEach((r) => {
+      const at = r.dataset.at;
+      const move = (ev) => {
+        const lines = names.map((n) => {
+          const hit = series[n].find((p) => p[0] === at);
+          return `<div class="row"><i style="background:${colorOf(n, targets)}"></i>${esc(n)} <b>${
+            hit ? fmtRank(hit[1]) : "-"}</b></div>`;
+        }).join("");
+        showTip(`<b>${mmdd(at)} ${hhmm(at)}</b>${lines}`, ev);
+      };
+      r.addEventListener("mousemove", move);
+      r.addEventListener("mouseenter", move);
+    });
+
+    bindLegend(el, (name, on) => {
+      el.querySelectorAll(`[data-series="${CSS.escape(name)}"], [data-label="${CSS.escape(name)}"]`)
+        .forEach((node) => { node.style.display = on ? "" : "none"; });
+    });
+  }
+
+  /* ═══════════════════════════════════════════ 2. 직전 대비 변화 (덤벨) */
+  function renderDumbbell(el, opts) {
+    const { current, primary, firstPage = 15 } = opts;
+    const rows = current
+      .map((r) => ({ keyword: r.keyword, ...(r.ranks[primary] || {}) }))
+      .filter((r) => r.rank !== undefined && (r.rank !== null || r.prev !== null));
+    const movable = rows.filter((r) => r.prev !== null && r.prev !== undefined);
+    if (!movable.length) {
+      return emptyState(el, `${primary} 순위 변화`,
+        "직전 수집 기록이 아직 없습니다. 두 번째 수집부터 변화량이 표시됩니다.");
+    }
+
+    const ROW = 26, PT = 24, PB = 26, PL = 118, PR = 74, W = 1000;
+    const H = PT + PB + movable.length * ROW;
+    const vals = movable.flatMap((r) => [r.rank, r.prev]).filter((v) => v !== null);
+    const maxRank = Math.max(firstPage, ...vals);
+    const OUT = maxRank + Math.max(2, Math.round(maxRank * 0.12));
+    const x = (r) => PL + (((r === null ? OUT : r) - 1) / (OUT - 1)) * (W - PL - PR);
+
+    const ticks = [...new Set([1, 5, firstPage, maxRank])].filter((v) => v <= maxRank).sort((a, b) => a - b);
+    let body = ticks.map((r) =>
+      `<line class="${r === firstPage ? "v-thresh" : "v-grid"}" x1="${x(r).toFixed(1)}" x2="${x(r).toFixed(1)}" y1="${PT - 8}" y2="${H - PB + 4}"/>
+       <text x="${x(r).toFixed(1)}" y="${PT - 12}" text-anchor="middle">${r}위</text>`).join("");
+    body += `<text x="${x(null).toFixed(1)}" y="${PT - 12}" text-anchor="middle">${RANK_OUT_LABEL}</text>`;
+
+    movable.forEach((r, i) => {
+      const cy = PT + i * ROW + ROW / 2;
+      const x1 = x(r.prev), x2 = x(r.rank);
+      const improved = r.delta !== null && r.delta > 0;
+      body += `
+        <text class="v-label" x="${PL - 10}" y="${cy + 3.5}" text-anchor="end">${esc(r.keyword)}</text>
+        <path class="v-line" d="M${x1.toFixed(1)},${cy}L${x2.toFixed(1)},${cy}" pathLength="1"
+              stroke="var(--viz-axis)" stroke-width="2" stroke-linecap="round"/>
+        <circle class="v-dot" cx="${x1.toFixed(1)}" cy="${cy}" r="4.5" fill="var(--viz-before)"/>
+        <circle class="v-dot v-move" style="--from:${(x1 - x2).toFixed(1)}px"
+                cx="${x2.toFixed(1)}" cy="${cy}" r="5.5" fill="var(--viz-after)"/>
+        <text class="v-label" x="${W - PR + 10}" y="${cy + 3.5}"
+              fill="${r.delta === null ? "var(--viz-muted)" : improved ? "var(--viz-good)" : r.delta === 0 ? "var(--viz-muted)" : "var(--viz-bad)"}">${
+          r.delta === null ? "—" : r.delta === 0 ? "변화 없음" : `${improved ? "▲" : "▼"} ${Math.abs(r.delta)}`}</text>
+        <rect class="v-hit" data-i="${i}" x="${PL}" y="${cy - ROW / 2}" width="${W - PL - PR}" height="${ROW}"/>`;
+    });
+
+    shell(el, {
+      title: `${primary} 순위 변화 (직전 수집 대비)`,
+      note: "옅은 점 = 직전, 진한 점 = 현재",
+      legend: `<div class="viz-legend">
+          <button type="button" aria-pressed="true" tabindex="-1"><i style="background:var(--viz-before)"></i>직전</button>
+          <button type="button" aria-pressed="true" tabindex="-1"><i style="background:var(--viz-after)"></i>현재</button>
+        </div>`,
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      table: `<table><thead><tr><th>키워드</th><th>직전</th><th>현재</th><th>변화</th></tr></thead><tbody>${
+        movable.map((r) => `<tr><td>${esc(r.keyword)}</td><td>${fmtRank(r.prev)}</td><td>${fmtRank(r.rank)}</td>
+          <td>${r.delta === null ? "-" : r.delta === 0 ? "0" : (r.delta > 0 ? "▲ " : "▼ ") + Math.abs(r.delta)}</td></tr>`).join("")
+      }</tbody></table>`,
+      ariaLabel: `${primary}의 키워드별 직전 수집 대비 순위 변화`,
+    });
+
+    el.querySelectorAll("rect.v-hit").forEach((rect) => {
+      const r = movable[Number(rect.dataset.i)];
+      const move = (ev) => showTip(
+        `<b>${esc(r.keyword)}</b><div class="row"><i style="background:var(--viz-before)"></i>직전 <b>${fmtRank(r.prev)}</b></div>
+         <div class="row"><i style="background:var(--viz-after)"></i>현재 <b>${fmtRank(r.rank)}</b></div>`, ev);
+      rect.addEventListener("mousemove", move);
+      rect.addEventListener("mouseenter", move);
+    });
+  }
+
+  /* ═══════════════════════════════════════ 3. 키워드 × 업체 (히트맵) */
+  const RAMP = ["--viz-q7", "--viz-q6", "--viz-q5", "--viz-q4", "--viz-q3", "--viz-q2", "--viz-q1"];
+
+  function rampColor(rank, maxRank) {
+    if (rank === null || rank === undefined) return "var(--viz-surface)";
+    const span = Math.max(1, maxRank - 1);
+    const idx = Math.min(RAMP.length - 1, Math.floor(((rank - 1) / span) * RAMP.length));
+    return `var(${RAMP[idx]})`;
+  }
+  // 진한 칸 위의 글자는 흰색이어야 읽힌다 (램프 앞쪽 3단계).
+  const rampInk = (rank, maxRank) => {
+    if (rank === null || rank === undefined) return "var(--viz-muted)";
+    const span = Math.max(1, maxRank - 1);
+    return Math.floor(((rank - 1) / span) * RAMP.length) < 3 ? "#ffffff" : "var(--viz-ink)";
+  };
+
+  function renderHeatmap(el, opts) {
+    const { heatmap, firstPage = 15 } = opts;
+    const { keywords, targets, cells } = heatmap;
+    if (!keywords.length || !targets.length) {
+      return emptyState(el, "키워드 × 업체 순위", "표시할 데이터가 없습니다.");
+    }
+    const maxRank = Math.max(firstPage, heatmap.max || firstPage);
+
+    const CW = 96, CH = 30, PL = 150, PT = 26, W = PL + targets.length * CW + 8;
+    const H = PT + keywords.length * CH + 6;
+
+    let body = targets.map((t, c) =>
+      `<text class="v-label" x="${PL + c * CW + CW / 2}" y="${PT - 10}" text-anchor="middle">${esc(t)}</text>`).join("");
+
+    keywords.forEach((kw, r) => {
+      body += `<text class="v-label" x="${PL - 12}" y="${PT + r * CH + CH / 2 + 3.5}" text-anchor="end">${esc(kw)}</text>`;
+      targets.forEach((t, c) => {
+        const v = cells[r][c];
+        // 칸 사이 2px 간격 — 테두리를 그리지 않고 표면색으로 띄운다.
+        // 격자가 격자로 나타나는 순간이라 행 단위 스태거만 준다(최대 200ms).
+        body += `<rect class="v-cell" style="animation-delay:${Math.min(r, 8) * 25}ms"
+                   x="${PL + c * CW + 1}" y="${PT + r * CH + 1}" width="${CW - 2}" height="${CH - 2}"
+                   rx="4" fill="${rampColor(v, maxRank)}"
+                   ${v === null ? 'stroke="var(--viz-grid)" stroke-width="1"' : ""}/>
+                 <text x="${PL + c * CW + CW / 2}" y="${PT + r * CH + CH / 2 + 3.5}" text-anchor="middle"
+                   fill="${rampInk(v, maxRank)}" style="font-size:11px;font-weight:560">${fmtRank(v)}</text>
+                 <rect class="v-hit" data-r="${r}" data-c="${c}" x="${PL + c * CW}" y="${PT + r * CH}"
+                   width="${CW}" height="${CH}"/>`;
+      });
+    });
+
+    shell(el, {
+      title: "키워드 × 업체 노출순위",
+      note: "진할수록 상위",
+      legend: `<div class="viz-scale"><span>상위</span><span class="ramp">${
+        RAMP.map((v) => `<i style="background:var(${v})"></i>`).join("")}</span><span>하위</span>
+        <span style="margin-left:.5rem;display:inline-flex;align-items:center;gap:.375rem">
+          <i style="width:16px;height:10px;border-radius:2px;border:1px solid var(--viz-grid);display:inline-block"></i>${RANK_OUT_LABEL}</span></div>`,
+      // 칸 크기가 고정이라 늘려 봐야 글자만 커진다. 고유 폭에서 멈춘다.
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, maxWidth: W, body },
+      table: `<table><thead><tr><th>키워드</th>${targets.map((t) => `<th>${esc(t)}</th>`).join("")}</tr></thead>
+              <tbody>${keywords.map((kw, r) => `<tr><td>${esc(kw)}</td>${
+                cells[r].map((v) => `<td>${fmtRank(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
+      ariaLabel: "키워드별 업체 노출순위 히트맵",
+    });
+
+    el.querySelectorAll("rect.v-hit").forEach((rect) => {
+      const r = Number(rect.dataset.r), c = Number(rect.dataset.c);
+      const move = (ev) => showTip(
+        `<b>${esc(keywords[r])}</b><div class="row">${esc(targets[c])} <b>${fmtRank(cells[r][c])}</b></div>`, ev);
+      rect.addEventListener("mousemove", move);
+      rect.addEventListener("mouseenter", move);
+    });
+  }
+
+  /* ══════════════════════════════════════ 4. 시간대별 평균 순위 (막대) */
+  function renderHourly(el, opts) {
+    const { hourly, primary, firstPage = 15 } = opts;
+    const vals = hourly.series[primary] || [];
+    const filled = vals.filter((v) => v !== null);
+    if (filled.length < 2) {
+      return emptyState(el, `시간대별 평균 순위 — ${primary}`,
+        "자동 수집이 여러 시간대에 걸쳐 돌면 '몇 시에 순위가 밀리는지'가 여기 나타납니다.");
+    }
+
+    const W = 1000, H = 250, PL = 42, PR = 14, PT = 16, PB = 34;
+    const maxRank = Math.max(firstPage, ...filled);
+    const y = (r) => PT + ((r - 1) / Math.max(1, maxRank - 1)) * (H - PT - PB);
+    const slot = (W - PL - PR) / 24;
+    const cx = (h) => PL + slot * h + slot / 2;
+
+    const ticks = [...new Set([1, 5, firstPage, Math.round(maxRank)])].filter((v) => v <= maxRank).sort((a, b) => a - b);
+    let body = ticks.map((r) =>
+      `<line class="${r === firstPage ? "v-thresh" : "v-grid"}" x1="${PL}" x2="${W - PR}" y1="${y(r).toFixed(1)}" y2="${y(r).toFixed(1)}"/>
+       <text x="${PL - 8}" y="${(y(r) + 3.5).toFixed(1)}" text-anchor="end">${r}위</text>`).join("");
+
+    const best = hourly.best_hour, worst = hourly.worst_hour;
+    hourly.hours.forEach((h) => {
+      const v = vals[h];
+      body += `<text x="${cx(h).toFixed(1)}" y="${H - 12}" text-anchor="middle">${h % 3 === 0 ? h : ""}</text>`;
+      if (v === null) return;
+      const isBest = best && best.hour === h, isWorst = worst && worst.hour === h;
+      // 위(1위)에서 아래로 내려오는 얇은 스템 + 끝점. 짧을수록 상위.
+      body += `<line x1="${cx(h).toFixed(1)}" x2="${cx(h).toFixed(1)}" y1="${PT}" y2="${y(v).toFixed(1)}"
+                 stroke="var(--viz-s1)" stroke-width="2" stroke-opacity="${isBest || isWorst ? 1 : 0.45}" stroke-linecap="round"/>
+               <circle class="v-dot" cx="${cx(h).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4.5" fill="var(--viz-s1)"/>
+               <rect class="v-hit" data-h="${h}" x="${(cx(h) - slot / 2).toFixed(1)}" y="${PT}" width="${slot.toFixed(1)}" height="${H - PT - PB}"/>`;
+      if (isBest || isWorst) {
+        body += `<text class="v-label" x="${cx(h).toFixed(1)}" y="${(y(v) + 17).toFixed(1)}" text-anchor="middle"
+                   fill="${isBest ? "var(--viz-good)" : "var(--viz-bad)"}">${isBest ? "가장 좋음" : "가장 밀림"} ${v}</text>`;
+      }
+    });
+    body += `<text x="${W - PR}" y="${H - 12}" text-anchor="end">시(時)</text>`;
+
+    shell(el, {
+      title: `시간대별 평균 순위 — ${primary}`,
+      note: "스템이 짧을수록 상위",
+      legend: "",
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      table: `<table><thead><tr><th>시간</th><th>평균 순위</th><th>표본</th></tr></thead><tbody>${
+        hourly.hours.filter((h) => vals[h] !== null)
+          .map((h) => `<tr><td>${String(h).padStart(2, "0")}시</td><td>${vals[h]}</td><td>${hourly.counts[h]}</td></tr>`)
+          .join("")}</tbody></table>`,
+      ariaLabel: `${primary}의 시간대별 평균 노출순위`,
+    });
+
+    el.querySelectorAll("rect.v-hit").forEach((rect) => {
+      const h = Number(rect.dataset.h);
+      const move = (ev) => showTip(
+        `<b>${String(h).padStart(2, "0")}시</b><div class="row">평균 <b>${vals[h]}위</b></div>
+         <div class="row" style="color:var(--viz-muted)">표본 ${hourly.counts[h]}건</div>`, ev);
+      rect.addEventListener("mousemove", move);
+      rect.addEventListener("mouseenter", move);
+    });
+  }
+
+  /* ══════════════════════════════════════════════════ 5. KPI 스탯 타일 */
+  function sparkline(values, color) {
+    const pts = values.filter((v) => v !== null && v !== undefined);
+    if (pts.length < 2) return "";
+    const W = 72, H = 18, max = Math.max(...pts), min = Math.min(...pts);
+    const span = Math.max(1, max - min);
+    const step = W / (values.length - 1);
+    const d = values.map((v, i) => {
+      if (v === null || v === undefined) return null;
+      const y = 2 + ((v - min) / span) * (H - 4); // 값이 작을수록(상위) 위로
+      return `${i * step},${y.toFixed(1)}`;
+    }).filter(Boolean);
+    return `<svg class="k-spark" viewBox="0 0 ${W} ${H}" aria-hidden="true">
+      <polyline points="${d.join(" ")}" fill="none" stroke="${color || "var(--viz-s1)"}"
+        stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  }
+
+  /* 색만으로 뜻을 전하지 않도록 화살표 + 숫자 + 단위를 항상 붙인다. */
+  function deltaHtml(delta, opts) {
+    const { unit = "", invert = false, zero = "변화 없음" } = opts || {};
+    if (delta === null || delta === undefined) return `<span class="viz-delta flat">—</span>`;
+    if (delta === 0) return `<span class="viz-delta flat">${zero}</span>`;
+    const good = invert ? delta < 0 : delta > 0;
+    return `<span class="viz-delta ${good ? "up" : "down"}">${delta > 0 ? "▲" : "▼"} ${Math.abs(delta)}${unit}</span>`;
+  }
+
+  /* 증감은 직전 기록이 있는 키워드끼리만 비교한다(analytics.kpi 와 같은 기준). */
+  function pairedDelta(kpi, key, invert) {
+    if (!kpi.compared) return `<span class="viz-delta flat">비교할 직전 기록 없음</span>`;
+    return deltaHtml(kpi[`${key}_now`] - kpi[`${key}_prev`], { unit: "개", invert });
+  }
+
+  function renderKpis(el, kpi, sparks) {
+    if (!kpi || !kpi.keywords) { el.innerHTML = ""; return; }
+    const tiles = [
+      {
+        label: `${kpi.target} 평균 순위`,
+        value: kpi.avg_rank === null ? "—" : kpi.avg_rank,
+        unit: kpi.avg_rank === null ? "" : "위",
+        foot: kpi.compared
+          ? deltaHtml(kpi.avg_rank_delta, { unit: "위" })
+          : `<span class="viz-delta flat">비교할 직전 기록 없음</span>`,
+        spark: sparkline(sparks || []),
+      },
+      {
+        label: "첫 페이지 노출",
+        value: kpi.first_page,
+        unit: ` / ${kpi.keywords}`,
+        foot: pairedDelta(kpi, "first_page"),
+      },
+      {
+        label: "상위 3위 이내",
+        value: kpi.top3,
+        unit: ` / ${kpi.keywords}`,
+        foot: pairedDelta(kpi, "top3"),
+      },
+      {
+        label: "순위밖 (미노출)",
+        value: kpi.out,
+        unit: ` / ${kpi.keywords}`,
+        foot: pairedDelta(kpi, "out", true),
+      },
+    ];
+    el.classList.add("viz");
+    el.innerHTML = `<div class="kpis">${tiles.map((t) => `
+      <div class="kpi">
+        <div class="k-label">${esc(t.label)}</div>
+        <div class="k-value">${t.value}${t.unit ? `<small>${esc(t.unit)}</small>` : ""}</div>
+        <div class="k-foot">${t.foot}${t.spark || ""}</div>
+      </div>`).join("")}</div>`;
+  }
+
+  global.Viz = {
+    colorOf, fmtRank, esc, sparkline, deltaHtml, hideTip,
+    renderTrend, renderDumbbell, renderHeatmap, renderHourly, renderKpis,
+  };
+})(window);
+</script>
+<script>
+(function () {
+  const A = {"generated_at": "2026-07-31T19:02:37", "targets": ["엔카", "헤이딜러", "K다이렉트카", "현대글로비스오토벨"], "primary": "엔카", "first_page": 15, "kpi": {"target": "엔카", "keywords": 3, "compared": 0, "avg_rank": 6.3, "avg_rank_delta": null, "first_page": 3, "first_page_prev": 0, "first_page_now": 0, "top3": 0, "top3_prev": 0, "top3_now": 0, "out": 0, "out_prev": 0, "out_now": 0}, "kpi_spark": [6.3], "current": [{"keyword": "중고차팔기", "total_ads": 73, "fetched_at": "2026-07-31T19:02:34", "ranks": {"엔카": {"rank": 8, "prev": null, "delta": null, "history": [8]}, "헤이딜러": {"rank": 1, "prev": null, "delta": null, "history": [1]}, "K다이렉트카": {"rank": 45, "prev": null, "delta": null, "history": [45]}, "현대글로비스오토벨": {"rank": null, "prev": null, "delta": null, "history": [null]}}}, {"keyword": "내차팔기", "total_ads": 56, "fetched_at": "2026-07-31T19:02:34", "ranks": {"엔카": {"rank": 5, "prev": null, "delta": null, "history": [5]}, "헤이딜러": {"rank": 1, "prev": null, "delta": null, "history": [1]}, "K다이렉트카": {"rank": 33, "prev": null, "delta": null, "history": [33]}, "현대글로비스오토벨": {"rank": null, "prev": null, "delta": null, "history": [null]}}}, {"keyword": "내차시세조회", "total_ads": 35, "fetched_at": "2026-07-31T19:02:34", "ranks": {"엔카": {"rank": 6, "prev": null, "delta": null, "history": [6]}, "헤이딜러": {"rank": 8, "prev": null, "delta": null, "history": [8]}, "K다이렉트카": {"rank": 22, "prev": null, "delta": null, "history": [22]}, "현대글로비스오토벨": {"rank": null, "prev": null, "delta": null, "history": [null]}}}], "heatmap": {"keywords": ["중고차팔기", "내차팔기", "내차시세조회"], "targets": ["엔카", "헤이딜러", "K다이렉트카", "현대글로비스오토벨"], "cells": [[8, 1, 45, null], [5, 1, 33, null], [6, 8, 22, null]], "max": 45}, "hourly": {"hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23], "series": {"엔카": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 6.3, null, null, null, null], "헤이딜러": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 3.3, null, null, null, null], "K다이렉트카": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 33.3, null, null, null, null], "현대글로비스오토벨": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]}, "counts": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0], "best_hour": {"hour": 19, "avg": 6.3}, "worst_hour": {"hour": 19, "avg": 6.3}}, "volatility": [], "competitive": [{"keyword": "중고차팔기", "rank": 8, "ahead": [{"target": "헤이딜러", "rank": 1}]}, {"keyword": "내차팔기", "rank": 5, "ahead": [{"target": "헤이딜러", "rank": 1}]}, {"keyword": "내차시세조회", "rank": 6, "ahead": []}], "trend": {"중고차팔기": {"엔카": [["2026-07-31T19:02:34", 8]], "헤이딜러": [["2026-07-31T19:02:34", 1]], "K다이렉트카": [["2026-07-31T19:02:34", 45]], "현대글로비스오토벨": [["2026-07-31T19:02:34", null]]}, "내차팔기": {"엔카": [["2026-07-31T19:02:34", 5]], "헤이딜러": [["2026-07-31T19:02:34", 1]], "K다이렉트카": [["2026-07-31T19:02:34", 33]], "현대글로비스오토벨": [["2026-07-31T19:02:34", null]]}, "내차시세조회": {"엔카": [["2026-07-31T19:02:34", 6]], "헤이딜러": [["2026-07-31T19:02:34", 8]], "K다이렉트카": [["2026-07-31T19:02:34", 22]], "현대글로비스오토벨": [["2026-07-31T19:02:34", null]]}}, "sample_count": 12};
+  Viz.renderKpis(document.getElementById("kpi"), A.kpi, A.kpi_spark);
+  Viz.renderHeatmap(document.getElementById("heatmap"), { heatmap: A.heatmap, firstPage: A.first_page });
+  Viz.renderDumbbell(document.getElementById("dumbbell"),
+    { current: A.current, primary: A.primary, firstPage: A.first_page });
+  Viz.renderHourly(document.getElementById("hourly"),
+    { hourly: A.hourly, primary: A.primary, firstPage: A.first_page });
+  document.querySelectorAll("[data-trend]").forEach((el) => {
+    const kw = el.dataset.trend;
+    Viz.renderTrend(el, { keyword: kw, series: A.trend[kw] || {}, targets: A.targets, firstPage: A.first_page });
+  });
+})();
+</script>
+</body>
+</html>
