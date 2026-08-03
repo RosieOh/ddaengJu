@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import analytics, config as config_mod, excel, report
-from .collector import PowerLinkCollector, Target, measure
+from .collector import PAGE_SIZE, PowerLinkCollector, Target, measure
 from .scheduler import HourlyScheduler
 from .store import RankStore
 
@@ -138,6 +138,9 @@ def detail(keyword: str) -> dict:
         "total_ads": result.total_ads,
         "fetched_at": result.fetched_at.isoformat(timespec="seconds"),
         "error": result.error,
+        # 화면이 '몇 위부터 더보기를 눌러야 보이는지' 를 페이지 단위로 끊어 보여준다.
+        # 15 를 프런트에 또 박아 두면 수집기와 어긋날 수 있으니 여기서 내려준다.
+        "page_size": PAGE_SIZE,
         "items": [
             {
                 "rank": i.rank,

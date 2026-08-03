@@ -269,6 +269,19 @@ tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px
   gap: 0.75rem; padding: 0.5rem 0.75rem;
   background: var(--surface); white-space: normal;
 }
+/* 노출 페이지 경계. 1페이지(1~15위)와 그 뒤를 눈으로 갈라 준다. */
+.adgroup-head {
+  display: flex; align-items: baseline; gap: 0.4375rem;
+  padding: 0.4375rem 0.75rem;
+  background: var(--surface-sunk);
+  border-bottom: 1px solid var(--line);
+  font-size: 0.75rem; color: var(--ink-3);
+  white-space: nowrap;
+}
+.adgroup-head b { font-size: 0.8125rem; font-weight: 620; color: var(--ink-2); }
+.adgroup-head .spacer { flex: 1; }
+.adgroup-head > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
 .ad.hit { background: var(--accent-soft); }
 .ad .r { font-variant-numeric: tabular-nums; font-weight: 620; color: var(--ink-2); text-align: right; }
 .ad.hit .r { color: var(--accent); }
@@ -1150,20 +1163,50 @@ async function detailHtml(kw) {
       <p class="hint" style="margin-bottom:.5rem">
         '${esc(d.keyword)}' 파워링크 전체 ${d.total_ads}개 · ${hhmm(d.fetched_at)} 기준
       </p>
-      <div class="adlist">${d.items.map((it) => `
-        <div class="ad ${it.is_target.length ? "hit" : ""}">
-          <div class="r">${it.rank}</div>
-          <div>
-            <div><span class="site">${esc(it.site || "(업체명 없음)")}</span>
-                 <span class="dom">${esc(it.domain)}</span>
-                 ${it.is_target.map((n) => `<span class="tag">${esc(n)}</span>`).join("")}</div>
-            <div class="tt">${esc(it.title)}</div>
-          </div>
-        </div>`).join("")}
-      </div>
+      <div class="adlist">${adGroupsHtml(d)}</div>
     </div>`;
   state.detail.set(kw, html);
   return html;
+}
+
+/* 광고 90개를 한 줄로 쏟으면 '몇 위'가 숫자로만 남는다. 이 도구에서 순위가
+   뜻을 갖는 단위는 네이버 노출 페이지다 — 1페이지 15개는 그냥 보이지만
+   16위부터는 사용자가 '더보기'를 눌러야 나온다. 그 경계로 끊어 준다. */
+function adGroupsHtml(d) {
+  const size = d.page_size || 15;
+  const groups = new Map();
+  d.items.forEach((it) => {
+    const page = Math.floor((it.rank - 1) / size) + 1;
+    if (!groups.has(page)) groups.set(page, []);
+    groups.get(page).push(it);
+  });
+
+  return Array.from(groups, ([page, items]) => {
+    const hits = items.filter((it) => it.is_target.length).length;
+    // 1페이지는 그냥 보이는 자리, 2페이지부터는 '더보기'를 몇 번 눌러야 하는지 센다
+    const where = page === 1
+      ? "더보기 없이 보이는 자리"
+      : `'더보기' ${page - 1}번`;
+    return `<div class="adgroup-head">
+        <b>${page}페이지</b>
+        <span>${where}</span>
+        <span class="spacer"></span>
+        <span>${items.length}개${hits ? ` · 추적 ${hits}` : ""}</span>
+      </div>
+      ${items.map(adRowHtml).join("")}`;
+  }).join("");
+}
+
+function adRowHtml(it) {
+  return `<div class="ad ${it.is_target.length ? "hit" : ""}">
+      <div class="r">${it.rank}</div>
+      <div>
+        <div><span class="site">${esc(it.site || "(업체명 없음)")}</span>
+             <span class="dom">${esc(it.domain)}</span>
+             ${it.is_target.map((n) => `<span class="tag">${esc(n)}</span>`).join("")}</div>
+        <div class="tt">${esc(it.title)}</div>
+      </div>
+    </div>`;
 }
 
 /* ERP 셸: 모달 대신 행 아래로 편다. 표의 맥락을 잃지 않는 게 낫다. */
