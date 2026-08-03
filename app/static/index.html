@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<!-- 모바일 브라우저 크롬(주소창)을 앱 배경과 맞춘다. 없으면 다크 모드에서 흰 띠가 남는다. -->
+<meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#242424" media="(prefers-color-scheme: dark)" />
+<meta name="description" content="네이버 모바일 파워링크에서 추적 업체가 몇 위에 노출되는지 자동으로 수집·분석합니다." />
 <title>파워링크 노출순위 모니터</title>
 <link rel="stylesheet" href="/static/viz.css" />
 <style>
@@ -343,9 +347,12 @@ tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px
 }
 .note.err { border-color: var(--danger); color: var(--danger); background: transparent; }
 
+/* 토스트는 탭바 위에 뜬다. z-index 로 덮으면 읽히긴 해도 이동 메뉴를 가린다. */
 #toast {
   position: fixed; z-index: var(--z-toast);
-  left: 50%; bottom: 1.5rem; transform: translate(-50%, 0.75rem);
+  left: 50%;
+  bottom: calc(0.75rem + var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 0.75rem);
   padding: 0.5625rem 0.875rem;
   background: var(--ink); color: var(--bg);
   border-radius: var(--radius-s); font-size: 0.8125rem;
@@ -493,7 +500,8 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
 <body data-view="search">
 
 <!-- 첫 진입 장면. JS 가 죽으면 hidden 인 채로 남아 대시보드를 가리지 않는다. -->
-<div class="splash" id="splash" hidden>
+<div class="splash" id="splash" hidden
+     role="dialog" aria-modal="true" aria-label="시작 화면">
   <div class="splash-stage">
     <div class="slots" id="slots" aria-hidden="true"></div>
     <div class="counter">
@@ -587,9 +595,10 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
     <header>
       <h2>결과</h2>
       <div class="spacer"></div>
-      <span class="hint" id="resultMeta"></span>
+      <!-- 조회가 끝난 걸 알리는 자리. 표 전체를 읽어 주면 시끄러우니 요약 한 줄만 라이브로 둔다 -->
+      <span class="hint" id="resultMeta" aria-live="polite"></span>
     </header>
-    <div id="result">
+    <div id="result" aria-busy="false">
       <div class="empty">
         <h3>아직 조회한 순위가 없습니다</h3>
         <p>위에 키워드를 넣고 <strong>순위 조회</strong>를 누르면, 키워드별로 추적 업체가 파워링크에서 몇 위에 노출되는지 정리됩니다. 키워드를 눌러 광고 목록 전체를 볼 수도 있습니다.</p>
@@ -748,17 +757,40 @@ const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)");
    기기마다 정보구조를 바꾸면 쓰는 사람이 헷갈린다. */
 const VIEWS = { search: "순위 조회", analysis: "분석", settings: "설정" };
 
-function setView(name, opts) {
+function setView(name, opts = {}) {
   if (!VIEWS[name]) return;
   document.body.dataset.view = name;
   $("#viewTitle").textContent = VIEWS[name];
+  document.title = `${VIEWS[name]} · 파워링크 노출순위 모니터`;
   $$("[data-goto]").forEach((b) =>
     b.setAttribute("aria-current", b.dataset.goto === name ? "page" : "false"));
-  if (!(opts && opts.keepScroll)) window.scrollTo({ top: 0, behavior: "instant" });
+  if (!opts.keepScroll) window.scrollTo({ top: 0, behavior: "instant" });
+
+  // 화면이 바뀌면 주소도 바뀌어야 한다. 그래야 뒤로가기가 화면을 되돌리고,
+  // 특정 화면을 링크로 열거나 즐겨찾기에 걸 수 있다.
+  if (!opts.silent) {
+    const url = new URL(location.href);
+    url.searchParams.set("view", name);
+    history[opts.replace ? "replaceState" : "pushState"]({ view: name }, "", url);
+  }
   // 분석 화면은 열릴 때 비어 있으면 그때 채운다 — 첫 진입을 붙잡아 두지 않는다.
   if (name === "analysis" && !state.analysis) loadAnalytics();
 }
 $$("[data-goto]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.goto)));
+
+/* 뒤로가기는 (1) 열려 있는 시트를 닫고, (2) 그다음 이전 화면으로 돌아간다.
+   시트가 떠 있는데 뒤로 눌렀다고 사이트를 벗어나면 앱처럼 느껴지지 않는다. */
+window.addEventListener("popstate", (e) => {
+  const st = e.state || {};
+  const dlg = $("#sheet");
+  if (dlg.open && !st.sheet) {
+    state.sheetFromHistory = true;   // close 핸들러가 history 를 또 되감지 않도록
+    dlg.close();
+    state.sheetFromHistory = false;
+  }
+  const view = st.view || new URLSearchParams(location.search).get("view") || "search";
+  setView(view, { silent: true, keepScroll: true });
+});
 
 /* ═══════════════════════════════════════════════════════════ 스플래시 */
 const SLOT_COUNT = 15;   // 모바일 파워링크 1페이지 노출 개수
@@ -787,10 +819,33 @@ const splash = {
     });
   },
 
+  /* 스플래시는 화면 전체를 덮는다. 보이는 것만 덮고 초점은 그대로 두면
+     키보드·스크린리더 사용자는 가려진 대시보드 속을 헤매게 된다.
+     뒤를 inert 로 잠그고 초점을 '건너뛰기'로 옮겨, 눈에 보이는 것과 일치시킨다. */
+  lock() {
+    this.returnTo = document.activeElement;
+    $$("body > *").forEach((el) => { if (el !== this.el) el.inert = true; });
+    $("#splashSkip").focus({ preventScroll: true });
+  },
+
+  unlock() {
+    $$("body > *").forEach((el) => { el.inert = false; });
+    // 스플래시가 가져간 초점을 원래 자리로 돌려준다 (브랜드 클릭으로 다시 본 경우).
+    // 첫 진입이라 돌려줄 자리가 없으면 본문 맨 앞에 세운다 — 초점이 허공에 남지 않게.
+    const back = this.returnTo;
+    this.returnTo = null;
+    if (back && back !== document.body && document.contains(back)) {
+      back.focus({ preventScroll: true });
+    } else {
+      $("#workspace").focus({ preventScroll: true });
+    }
+  },
+
   run() {
     this.build();
     this.el.hidden = false;
     this.el.classList.remove("out", "reveal");
+    this.lock();
     cancelAnimationFrame(this.raf);
     clearTimeout(this.timer);
 
@@ -822,6 +877,8 @@ const splash = {
     if (this.el.hidden || this.el.classList.contains("out")) return;
     this.el.classList.add("out");
     try { sessionStorage.setItem("splashSeen", "1"); } catch (_) {}
+    // 초점은 사라지는 애니메이션을 기다리지 않는다 — 누른 즉시 본문을 쓸 수 있어야 한다
+    this.unlock();
     setTimeout(() => { this.el.hidden = true; }, REDUCED.matches ? 60 : 480);
   },
 
@@ -842,6 +899,10 @@ splash.init();
 /* ──────────────────────────────────────────────────────── 유틸 */
 function toast(msg, isError = false) {
   const el = $("#toast");
+  // 라이브 영역의 급함(polite/assertive)은 내용을 넣기 '전에' 정해져 있어야 한다.
+  // 실패는 하던 일을 끊고 알려야 하고, 성공은 끼어들 이유가 없다.
+  el.setAttribute("role", isError ? "alert" : "status");
+  el.setAttribute("aria-live", isError ? "assertive" : "polite");
   el.textContent = msg;
   el.style.background = isError ? "var(--danger)" : "var(--ink)";
   el.style.color = isError ? "oklch(0.99 0 0)" : "var(--bg)";
@@ -966,6 +1027,8 @@ async function search() {
   btn.innerHTML = `<i class="spin"></i>조회 중`;
 
   const rows = Math.max(3, ($("#kw").value.split(/[,\n\r\t;]+/).filter((s) => s.trim()).length) || state.cfg.keywords.length);
+  // 스켈레톤은 눈에만 보인다. 스크린리더에는 aria-busy 로 '아직 오는 중'을 알린다.
+  $("#result").setAttribute("aria-busy", "true");
   $("#result").innerHTML =
     `<div class="skel">${'<i></i>'.repeat(Math.min(rows + 1, 10))}</div>`;
   $("#resultMeta").textContent = "";
@@ -986,6 +1049,7 @@ async function search() {
     state.busy = false;
     btn.disabled = false;
     btn.textContent = "순위 조회";
+    $("#result").setAttribute("aria-busy", "false");
   }
 }
 
@@ -1130,8 +1194,17 @@ async function toggleDetail(btn) {
 async function openSheet(kw) {
   const dlg = $("#sheet");
   $("#sheetTitle").textContent = `'${kw}' 광고 목록`;
-  $("#sheetBody").innerHTML = `<div class="skel"><i></i><i></i><i></i><i></i></div>`;
-  if (!dlg.open) dlg.showModal();
+  // 광고를 1위부터 끝까지 다 세느라 몇 초 걸린다. 설명 없는 대기는 고장처럼 보인다.
+  $("#sheetBody").innerHTML = `
+    <p class="hint" style="padding:0.875rem 1rem 0">
+      1위부터 끝까지 세는 중입니다. 광고가 많으면 5초쯤 걸립니다.
+    </p>
+    <div class="skel"><i></i><i></i><i></i><i></i><i></i></div>`;
+  if (!dlg.open) {
+    dlg.showModal();
+    // 시트도 하나의 화면이다. 기록에 남겨야 뒤로가기로 닫힌다.
+    history.pushState({ view: document.body.dataset.view, sheet: kw }, "", location.href);
+  }
   try {
     $("#sheetBody").innerHTML = await detailHtml(kw);
   } catch (e) {
@@ -1141,6 +1214,18 @@ async function openSheet(kw) {
 $("#sheetClose").addEventListener("click", () => $("#sheet").close());
 // 시트 바깥(백드롭)을 누르면 닫힌다 — 네이티브 시트가 그렇게 동작한다
 $("#sheet").addEventListener("click", (e) => { if (e.target === $("#sheet")) $("#sheet").close(); });
+// Esc·닫기·백드롭 어느 쪽으로 닫혔든 기록을 한 칸 되감아 앞뒤를 맞춘다
+$("#sheet").addEventListener("close", () => {
+  if (!state.sheetFromHistory && history.state && history.state.sheet) history.back();
+});
+
+/* 창이 넓어지면 CSS 가 시트를 감춘다(ERP 셸에는 시트가 없다).
+   그런데 showModal 로 연 다이얼로그는 감춰져도 열린 채다 — 뒤 화면이 계속 잠겨
+   아무것도 못 누르는 상태가 된다. 셸이 바뀌는 순간 확실히 닫는다. */
+const WIDE = window.matchMedia("(min-width: 1024px)");
+WIDE.addEventListener("change", (e) => {
+  if (e.matches && $("#sheet").open) $("#sheet").close();
+});
 
 /* ─────────────────────────────────────────────────────── 분석 & 차트 */
 function analysisHours() { return Number($("#fHours").value) || 72; }
@@ -1293,13 +1378,14 @@ window.addEventListener("scroll", () => Viz.hideTip(), { passive: true });
   // ?view=analysis 로 특정 화면을 바로 열 수 있다 (분석은 그때 로드된다)
   const params = new URLSearchParams(location.search);
   const view = params.get("view");
-  if (view && VIEWS[view]) setView(view);
-  else await loadAnalytics();   // 조회 화면으로 들어오면 분석은 미리 데워 둔다
+  // 첫 항목도 상태를 갖고 있어야 뒤로가기가 여기로 정확히 돌아온다
+  setView(VIEWS[view] ? view : "search", { replace: true, keepScroll: true });
+  if (!VIEWS[view]) await loadAnalytics();   // 조회 화면으로 들어오면 분석은 미리 데워 둔다
 
   // ?q=중고차팔기,내차팔기 로 열면 바로 조회한다. 즐겨찾기로 걸어두고 쓸 수 있다.
   const q = params.get("q");
   if (q) {
-    setView("search", { keepScroll: true });
+    setView("search", { keepScroll: true, replace: true });
     $("#kw").value = q;
     await search();
   }
