@@ -90,6 +90,22 @@ h2 { font-size: 0.9375rem; }
 p  { margin: 0; }
 
 button, input, textarea, select { font: inherit; color: inherit; }
+/* 탭 지연(300ms) 없이 즉시 반응하게. 더블탭 확대만 포기하고 핀치 확대는 남는다. */
+button, a, input, select, label, summary { touch-action: manipulation; }
+
+/* 키보드 사용자가 메뉴·탭바를 건너뛰고 본문으로 바로 갈 수 있어야 한다 */
+.skip-link {
+  position: fixed; top: 0; left: 0; z-index: calc(var(--z-splash) + 1);
+  display: flex; align-items: center; min-height: 44px;
+  padding: 0.625rem 1rem;
+  background: var(--accent); color: oklch(0.99 0 0);
+  font-size: 0.875rem; font-weight: 600;
+  border-radius: 0 0 var(--radius-s) 0;
+  transform: translateY(-120%);
+  transition: transform var(--dur) var(--ease);
+}
+.skip-link:focus { transform: translateY(0); outline: none; }
+@media (prefers-color-scheme: dark) { .skip-link { color: oklch(0.16 0 0); } }
 
 /* ─────────────────────────────────────────────────────── 상단 바 */
 /* 셸 골격(앱바·사이드바·탭바·상태바)은 shell.css 가 맡는다 */
@@ -150,9 +166,15 @@ textarea:focus-visible, input:focus-visible, select:focus-visible {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-s);
+  /* a.btn 은 색을 안 주면 브라우저 기본 링크색을 물려받는다.
+     다크 모드에서 그 파란색은 대비 2.39:1 로 읽히지 않는다. */
+  color: var(--ink);
+  text-decoration: none;
   font-size: 0.8125rem; font-weight: 560;
   cursor: pointer;
   white-space: nowrap;
+  /* 모바일 브라우저의 300ms 탭 지연 제거 */
+  touch-action: manipulation;
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
               color var(--dur) var(--ease), transform 90ms var(--ease);
 }
@@ -288,7 +310,12 @@ tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px
 }
 .trow .icon-btn:hover { color: var(--danger); border-color: var(--danger); }
 .trow .icon-btn:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.switch { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; }
+.switch {
+  display: flex; align-items: center; gap: 0.5rem;
+  min-height: 44px; font-size: 0.8125rem; cursor: pointer;
+}
+/* 기본 체크박스는 13px 이라 손가락으로 정확히 누르기 어렵다 */
+.switch input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; cursor: pointer; }
 
 /* ─────────────────────────────────────────────── 상태 / 빈 상태 */
 .empty { padding: 2.5rem 1.25rem; text-align: center; display: grid; gap: 0.4375rem; justify-items: center; }
@@ -491,6 +518,8 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
   })();
 </script>
 
+<a class="skip-link" href="#workspace">본문으로 건너뛰기</a>
+
 <header class="appbar">
   <!-- 모바일은 '지금 어느 화면인지', 데스크톱은 '무슨 제품인지'를 단다. -->
   <h2 class="view-title" id="viewTitle">순위 조회</h2>
@@ -525,7 +554,7 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
     <p class="nav-note">모바일 파워링크 기준입니다. 1페이지에 15개가 노출되고, 16위부터는 '더보기'를 눌러야 보입니다.</p>
   </nav>
 
-  <main class="workspace">
+  <main class="workspace" id="workspace" tabindex="-1">
   <!-- ── 조회 ───────────────────────────────────────────────── -->
   <section class="view" data-view-name="search">
   <section class="panel">
@@ -573,7 +602,7 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
   <section class="view" data-view-name="analysis">
   <!-- 필터는 아래 모든 차트를 함께 바꾸는 한 줄이다. 차트마다 따로 두지 않는다. -->
   <section class="filterbar" id="filterbar" hidden>
-    <span class="fb-title">분석</span>
+    <h2 class="fb-title">분석</h2>
     <label class="sr" for="fHours">기간</label>
     <select id="fHours">
       <option value="24">최근 24시간</option>
@@ -675,15 +704,15 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
 <!-- 앱 하단 탭바 — 좁은 화면에서만 -->
 <nav class="tabbar" aria-label="화면 전환">
   <button type="button" data-goto="search" aria-current="page">
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.25" stroke="currentColor" stroke-width="1.6"/><path d="M12.9 12.9 17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.25" stroke="currentColor" stroke-width="1.5"/><path d="M12.9 12.9 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     조회
   </button>
   <button type="button" data-goto="analysis" aria-current="false">
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16.5V9M8 16.5V4M13 16.5v-5M17.5 16.5V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16.5V9M8 16.5V4M13 16.5v-5M17.5 16.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     분석
   </button>
   <button type="button" data-goto="settings" aria-current="false">
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     설정
   </button>
 </nav>
@@ -695,7 +724,7 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
     <h3 id="sheetTitle">광고 목록</h3>
     <div class="spacer"></div>
     <button class="sheet-close" type="button" id="sheetClose" aria-label="닫기">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
     </button>
   </div>
   <div class="sheet-body" id="sheetBody"></div>
@@ -865,7 +894,7 @@ function renderTargets() {
       <input type="text" value="${esc(t.name)}" data-k="name" aria-label="업체명 ${i + 1}" placeholder="업체명" />
       <input type="text" value="${esc((t.patterns || []).join(", "))}" data-k="patterns" aria-label="매칭어 ${i + 1}" placeholder="매칭어 (콤마 구분)" />
       <button class="icon-btn" type="button" aria-label="${esc(t.name)} 삭제">
-        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
       </button>`;
     row.querySelector(".icon-btn").addEventListener("click", () => {
       state.cfg.targets.splice(i, 1);
@@ -994,7 +1023,7 @@ function renderResults(data) {
     return `<tr class="kw-row" data-i="${ri}" style="animation-delay:${Math.min(ri, 8) * 24}ms">
         <td>
           <button class="kw" type="button" aria-expanded="false" data-kw="${esc(r.keyword)}" data-i="${ri}">
-            <svg class="chev" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg class="chev" width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             ${esc(r.keyword)}
           </button>
           ${r.error ? `<span class="tag" style="color:var(--danger);border-color:var(--danger)">수집오류</span>` : ""}

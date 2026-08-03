@@ -48,15 +48,32 @@ body {
 .appbar .spacer { flex: 1; }
 
 /* 모바일 앱바는 '현재 화면 이름'을 단다. 데스크톱은 제품명을 단다. */
-.appbar .view-title { font-size: 1.0625rem; font-weight: 640; letter-spacing: -0.015em; }
+.appbar .view-title {
+  font-size: 1.0625rem; font-weight: 640; letter-spacing: -0.015em;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .appbar .brand-desktop { display: none; }
+
+/* 시스템 글꼴을 키우면 nowrap 인 상태 표시가 앱바를 벌려 페이지 전체를 밀어낸다.
+   줄어들 수 있게 두고, 넘치면 잘라낸다. 점은 남으니 상태는 계속 보인다. */
+.appbar .sched { min-width: 0; flex: 0 1 auto; overflow: hidden; }
+.appbar .sched span {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .shell { display: block; }
 
 .view { display: none; padding: 0.875rem; }
 body[data-view="search"]   .view[data-view-name="search"],
 body[data-view="analysis"] .view[data-view-name="analysis"],
-body[data-view="settings"] .view[data-view-name="settings"] { display: grid; gap: 0.875rem; }
+body[data-view="settings"] .view[data-view-name="settings"] {
+  display: grid; gap: 0.875rem;
+  grid-template-columns: minmax(0, 1fr);   /* 기본 min-width:auto 를 풀어야 줄어든다 */
+}
+/* 시스템 글꼴을 키우면 nowrap 인 패널 머리글이 패널 폭을 늘려 화면을 밀어낸다 */
+.view > * { min-width: 0; }
+.panel > header { flex-wrap: wrap; }
+.panel > header > * { min-width: 0; }
 
 /* 좌측 메뉴 / 상태바는 ERP 셸에서만 존재한다 */
 .sidenav, .statusbar { display: none; }
@@ -292,6 +309,10 @@ dialog.sheet[open]::backdrop { animation: fade-in 260ms var(--ease); }
 
   /* iOS 는 16px 미만 입력에 포커스하면 화면을 확대한다 */
   textarea, input[type="text"], input[type="number"], select { font-size: 16px; }
+
+  /* 시스템 글꼴을 키우면 nowrap 인 긴 한글 버튼이 화면을 밀어낸다.
+     좁은 화면에서는 줄바꿈을 허용한다(단어 중간에서는 안 끊기게). */
+  .btn { white-space: normal; word-break: keep-all; text-align: center; }
   .grid2 { grid-template-columns: 1fr; }
   .filterbar { position: static; }
   /* 기간·키워드는 한 줄에 나눠 앉고, 리포트 두 개도 한 줄을 나눠 쓴다 */
@@ -311,8 +332,12 @@ dialog.sheet[open]::backdrop { animation: fade-in 260ms var(--ease); }
   .btn, .viz-toggle { min-height: 44px; }
   input[type="text"], input[type="number"], select { min-height: 44px; }
   .trow .icon-btn { width: 44px; height: 44px; }
-  .viz-legend button { min-height: 40px; padding-inline: 0.25rem; }
-  .kw { min-height: 40px; }
+  .viz-legend button { min-height: 44px; padding-inline: 0.25rem; }
+  .kw { min-height: 44px; }
+  /* 인접 조작부 사이 8px 이상 — 잘못 눌리는 걸 막는다 */
+  .actions, .targets, .trow, .actionbar { gap: 0.75rem; }
+  .field { gap: 0.625rem; }
+  .grid2 { gap: 1.25rem; }
 
   /* 차트가 고유 폭보다 좁은 칸에 들어가면 옆으로 굴린다 (본문은 안 굴러간다) */
 }
