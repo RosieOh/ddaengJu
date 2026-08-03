@@ -28,6 +28,16 @@
   --viz-q6: #184f95;
   --viz-q7: #0d366b;
 
+  /* 각 단계 위에 올릴 글자색. 눈대중이 아니라 대비를 계산해 짝지었다.
+     최저 5.06:1 — 밝기가 뒤집히는 q4/q5 사이에서 흰↔검이 갈린다. */
+  --viz-q1-ink: #141414;   /* 13.92:1 */
+  --viz-q2-ink: #141414;   /* 10.30:1 */
+  --viz-q3-ink: #141414;   /*  7.36:1 */
+  --viz-q4-ink: #141414;   /*  5.06:1 */
+  --viz-q5-ink: #ffffff;   /*  5.39:1 */
+  --viz-q6-ink: #ffffff;   /*  8.10:1 */
+  --viz-q7-ink: #ffffff;   /* 11.95:1 */
+
   --viz-before: #86b6ef;   /* 덤벨: 직전 */
   --viz-after:  #1c5cab;   /* 덤벨: 현재 */
 
@@ -60,6 +70,15 @@
     --viz-q5: #6da7ec;
     --viz-q6: #9ec5f4;
     --viz-q7: #cde2fb;
+
+    /* 램프가 뒤집혔으니 글자색도 뒤집힌다 */
+    --viz-q1-ink: #ffffff;   /* 11.95:1 */
+    --viz-q2-ink: #ffffff;   /*  8.10:1 */
+    --viz-q3-ink: #ffffff;   /*  5.39:1 */
+    --viz-q4-ink: #141414;   /*  5.06:1 */
+    --viz-q5-ink: #141414;   /*  7.36:1 */
+    --viz-q6-ink: #141414;   /* 10.30:1 */
+    --viz-q7-ink: #141414;   /* 13.92:1 */
 
     --viz-before: #256abf;
     --viz-after:  #9ec5f4;
@@ -118,11 +137,18 @@
 .viz-tip .row i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 
 /* 차트 ↔ 표 전환 */
-.viz-head { display: flex; align-items: center; gap: 0.5rem; padding: 0.875rem 1rem 0.5rem; }
-.viz-head h3 { margin: 0; font-size: 0.875rem; font-weight: 620; }
+.viz-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.5rem;
+  padding: 0.875rem 1rem 0.5rem;
+}
+.viz-head h3 { margin: 0; font-size: 0.875rem; font-weight: 620; word-break: keep-all; }
 .viz-head .spacer { flex: 1; }
-.viz-head .note { margin: 0; padding: 0; border: 0; background: none; font-size: 0.75rem; color: var(--viz-muted); }
+.viz-head .note {
+  margin: 0; padding: 0; border: 0; background: none;
+  font-size: 0.75rem; color: var(--viz-muted); word-break: keep-all;
+}
 .viz-toggle {
+  margin-left: auto; white-space: nowrap;
   background: none; border: 1px solid var(--line, #ddd); border-radius: 5px;
   padding: 0.1875rem 0.4375rem; font-size: 0.6875rem; color: var(--viz-ink-2); cursor: pointer;
 }

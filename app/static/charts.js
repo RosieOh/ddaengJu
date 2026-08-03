@@ -69,7 +69,8 @@
       ${legend || ""}
       <div class="viz-plot" style="padding:0 1rem 1rem">
         <svg viewBox="${svg.viewBox}" role="img" aria-label="${esc(ariaLabel || title)}"
-             style="aspect-ratio:${svg.ratio}${svg.maxWidth ? `;max-width:${svg.maxWidth}px` : ""}">${svg.body}</svg>
+             style="aspect-ratio:${svg.ratio}${svg.maxWidth ? `;max-width:${svg.maxWidth}px` : ""}${
+               svg.minWidth ? `;min-width:${svg.minWidth}px` : ""}">${svg.body}</svg>
       </div>
       <div class="viz-table" id="${id}" hidden>${table}</div>`;
 
@@ -129,7 +130,11 @@
         "수집 시점이 한 번뿐이라 추이를 그릴 수 없습니다. 두 번째 수집부터 선이 이어집니다.");
     }
 
-    const W = 1000, H = 300, PL = 46, PR = 58, PT = 14, PB = 30;
+    // PR 은 오른쪽 직접 라벨이 앉을 자리다. '현대글로비스오토벨 12위' 같은
+    // 긴 이름이 잘리지 않도록 이름 길이에 맞춰 넓힌다.
+    const longest = Math.max(...names.map((n) => n.length), 4);
+    const W = 1000, H = 300, PL = 46, PT = 14, PB = 30;
+    const PR = Math.min(190, 46 + longest * 11);
     const all = names.flatMap((n) => series[n]);
     const times = all.map((p) => new Date(p[0]).getTime());
     const t0 = Math.min(...times), t1 = Math.max(...times);
@@ -190,12 +195,18 @@
 
     const stamps = [...new Set(all.map((p) => p[0]))].sort();
     const spanDays = (t1 - t0) / 86400000;
-    [0, Math.floor(stamps.length / 2), stamps.length - 1].forEach((i, k) => {
-      const s = stamps[i];
-      if (!s) return;
-      body += `<text x="${x(new Date(s).getTime()).toFixed(1)}" y="${H - 8}"
-                text-anchor="${k === 0 ? "start" : k === 2 ? "end" : "middle"}">${
-                  spanDays > 1 ? `${mmdd(s)} ${hhmm(s)}` : hhmm(s)}</text>`;
+    const label = (s) => (spanDays > 1 ? `${mmdd(s)} ${hhmm(s)}` : hhmm(s));
+    // 가운데 눈금은 양 끝과 충분히 떨어졌을 때만 찍는다. 시각이 몰리면 글자가 겹친다.
+    const first = stamps[0], last = stamps[stamps.length - 1];
+    const mid = stamps[Math.floor(stamps.length / 2)];
+    const px = (s) => x(new Date(s).getTime());
+    const MIN_GAP = 90;
+    const marks = [[first, "start"], [last, "end"]];
+    if (mid && px(mid) - px(first) > MIN_GAP && px(last) - px(mid) > MIN_GAP) {
+      marks.push([mid, "middle"]);
+    }
+    marks.forEach(([s, anchor]) => {
+      body += `<text x="${px(s).toFixed(1)}" y="${H - 8}" text-anchor="${anchor}">${label(s)}</text>`;
     });
 
     // 시점별 세로 히트존 — 마우스가 근처에만 가도 그 시점 전체를 읽어준다
@@ -216,7 +227,8 @@
       title: `'${keyword}' 순위 추이`,
       note: "위로 갈수록 상위 노출",
       legend: legendBox(names, targets, true),
-      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      // 좁은 화면에서 줄이면 라벨이 뭉갠다. 폭을 지키고 컨테이너가 옆으로 구르게 둔다.
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, minWidth: 660, body },
       table: `<table><thead><tr><th>조회시각</th>${names.map((n) => `<th>${esc(n)}</th>`).join("")}</tr></thead>
               <tbody>${rows}</tbody></table>`,
       ariaLabel: `${keyword} 키워드의 업체별 순위 추이`,
@@ -279,7 +291,7 @@
         <circle class="v-dot v-move" style="--from:${(x1 - x2).toFixed(1)}px"
                 cx="${x2.toFixed(1)}" cy="${cy}" r="5.5" fill="var(--viz-after)"/>
         <text class="v-label" x="${W - PR + 10}" y="${cy + 3.5}"
-              fill="${r.delta === null ? "var(--viz-muted)" : improved ? "var(--viz-good)" : r.delta === 0 ? "var(--viz-muted)" : "var(--viz-bad)"}">${
+              style="fill:${r.delta === null || r.delta === 0 ? "var(--viz-muted)" : improved ? "var(--viz-good)" : "var(--viz-bad)"}">${
           r.delta === null ? "—" : r.delta === 0 ? "변화 없음" : `${improved ? "▲" : "▼"} ${Math.abs(r.delta)}`}</text>
         <rect class="v-hit" data-i="${i}" x="${PL}" y="${cy - ROW / 2}" width="${W - PL - PR}" height="${ROW}"/>`;
     });
@@ -291,7 +303,7 @@
           <button type="button" aria-pressed="true" tabindex="-1"><i style="background:var(--viz-before)"></i>직전</button>
           <button type="button" aria-pressed="true" tabindex="-1"><i style="background:var(--viz-after)"></i>현재</button>
         </div>`,
-      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, minWidth: 560, body },
       table: `<table><thead><tr><th>키워드</th><th>직전</th><th>현재</th><th>변화</th></tr></thead><tbody>${
         movable.map((r) => `<tr><td>${esc(r.keyword)}</td><td>${fmtRank(r.prev)}</td><td>${fmtRank(r.rank)}</td>
           <td>${r.delta === null ? "-" : r.delta === 0 ? "0" : (r.delta > 0 ? "▲ " : "▼ ") + Math.abs(r.delta)}</td></tr>`).join("")
@@ -312,18 +324,23 @@
   /* ═══════════════════════════════════════ 3. 키워드 × 업체 (히트맵) */
   const RAMP = ["--viz-q7", "--viz-q6", "--viz-q5", "--viz-q4", "--viz-q3", "--viz-q2", "--viz-q1"];
 
+  function rampStep(rank, maxRank) {
+    const span = Math.max(1, maxRank - 1);
+    return Math.min(RAMP.length - 1, Math.floor(((rank - 1) / span) * RAMP.length));
+  }
   function rampColor(rank, maxRank) {
     if (rank === null || rank === undefined) return "var(--viz-surface)";
-    const span = Math.max(1, maxRank - 1);
-    const idx = Math.min(RAMP.length - 1, Math.floor(((rank - 1) / span) * RAMP.length));
-    return `var(${RAMP[idx]})`;
+    return `var(${RAMP[rampStep(rank, maxRank)]})`;
   }
-  // 진한 칸 위의 글자는 흰색이어야 읽힌다 (램프 앞쪽 3단계).
-  const rampInk = (rank, maxRank) => {
+  /* SVG 의 fill 속성은 `.viz text { fill: ... }` 같은 CSS 선언에 무조건 진다.
+     그래서 글자색은 반드시 인라인 style 로 준다(속성으로 주면 회색으로 덮인다).
+     글자색은 칸 색에 짝지어 둔 토큰을 쓴다. 밝기가 뒤집히는 지점에서 흰↔검이
+     갈리고, 다크 모드는 램프가 뒤집히므로 토큰 쪽에서 함께 뒤집힌다.
+     (최저 대비 5.06:1 — viz.css 주석에 단계별 실측값이 적혀 있다) */
+  function rampInk(rank, maxRank) {
     if (rank === null || rank === undefined) return "var(--viz-muted)";
-    const span = Math.max(1, maxRank - 1);
-    return Math.floor(((rank - 1) / span) * RAMP.length) < 3 ? "#ffffff" : "var(--viz-ink)";
-  };
+    return `var(${RAMP[rampStep(rank, maxRank)]}-ink)`;
+  }
 
   function renderHeatmap(el, opts) {
     const { heatmap, firstPage = 15 } = opts;
@@ -350,7 +367,7 @@
                    rx="4" fill="${rampColor(v, maxRank)}"
                    ${v === null ? 'stroke="var(--viz-grid)" stroke-width="1"' : ""}/>
                  <text x="${PL + c * CW + CW / 2}" y="${PT + r * CH + CH / 2 + 3.5}" text-anchor="middle"
-                   fill="${rampInk(v, maxRank)}" style="font-size:11px;font-weight:560">${fmtRank(v)}</text>
+                   style="fill:${rampInk(v, maxRank)};font-size:11px;font-weight:560">${fmtRank(v)}</text>
                  <rect class="v-hit" data-r="${r}" data-c="${c}" x="${PL + c * CW}" y="${PT + r * CH}"
                    width="${CW}" height="${CH}"/>`;
       });
@@ -364,7 +381,7 @@
         <span style="margin-left:.5rem;display:inline-flex;align-items:center;gap:.375rem">
           <i style="width:16px;height:10px;border-radius:2px;border:1px solid var(--viz-grid);display:inline-block"></i>${RANK_OUT_LABEL}</span></div>`,
       // 칸 크기가 고정이라 늘려 봐야 글자만 커진다. 고유 폭에서 멈춘다.
-      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, maxWidth: W, body },
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, maxWidth: W, minWidth: W, body },
       table: `<table><thead><tr><th>키워드</th>${targets.map((t) => `<th>${esc(t)}</th>`).join("")}</tr></thead>
               <tbody>${keywords.map((kw, r) => `<tr><td>${esc(kw)}</td>${
                 cells[r].map((v) => `<td>${fmtRank(v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`,
@@ -414,7 +431,7 @@
                <rect class="v-hit" data-h="${h}" x="${(cx(h) - slot / 2).toFixed(1)}" y="${PT}" width="${slot.toFixed(1)}" height="${H - PT - PB}"/>`;
       if (isBest || isWorst) {
         body += `<text class="v-label" x="${cx(h).toFixed(1)}" y="${(y(v) + 17).toFixed(1)}" text-anchor="middle"
-                   fill="${isBest ? "var(--viz-good)" : "var(--viz-bad)"}">${isBest ? "가장 좋음" : "가장 밀림"} ${v}</text>`;
+                   style="fill:${isBest ? "var(--viz-good)" : "var(--viz-bad)"}">${isBest ? "가장 좋음" : "가장 밀림"} ${v}</text>`;
       }
     });
     body += `<text x="${W - PR}" y="${H - 12}" text-anchor="end">시(時)</text>`;
@@ -423,7 +440,7 @@
       title: `시간대별 평균 순위 — ${primary}`,
       note: "스템이 짧을수록 상위",
       legend: "",
-      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, body },
+      svg: { viewBox: `0 0 ${W} ${H}`, ratio: `${W}/${H}`, minWidth: 620, body },
       table: `<table><thead><tr><th>시간</th><th>평균 순위</th><th>표본</th></tr></thead><tbody>${
         hourly.hours.filter((h) => vals[h] !== null)
           .map((h) => `<tr><td>${String(h).padStart(2, "0")}시</td><td>${vals[h]}</td><td>${hourly.counts[h]}</td></tr>`)

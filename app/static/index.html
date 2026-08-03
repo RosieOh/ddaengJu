@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>파워링크 노출순위 모니터</title>
 <link rel="stylesheet" href="/static/viz.css" />
 <style>
@@ -92,17 +92,7 @@ p  { margin: 0; }
 button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ─────────────────────────────────────────────────────── 상단 바 */
-.topbar {
-  position: sticky; top: 0; z-index: var(--z-sticky);
-  display: flex; align-items: center; gap: 0.875rem;
-  padding: 0.6875rem 1.25rem;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-}
-.brand { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
-.brand span { color: var(--ink-3); font-size: 0.75rem; white-space: nowrap; }
-.topbar .spacer { flex: 1; }
-
+/* 셸 골격(앱바·사이드바·탭바·상태바)은 shell.css 가 맡는다 */
 .sched {
   display: inline-flex; align-items: center; gap: 0.4375rem;
   padding: 0.25rem 0.5625rem;
@@ -116,13 +106,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .sched[data-on="0"] .dot { background: var(--ink-3); }
 
 /* ───────────────────────────────────────────────────────── 레이아웃 */
-main {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 4rem;
-  display: grid;
-  gap: 1.5rem;
-}
+.workspace { min-width: 0; }
 
 .panel {
   background: var(--surface);
@@ -266,7 +250,8 @@ tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px
 /* ─────────────────────────────────────────────── 분석 필터 & 차트 그리드 */
 /* 필터 한 줄이 아래 차트 전부를 함께 바꾼다 (차트별 개별 필터를 두지 않는다) */
 .filterbar {
-  position: sticky; top: 49px; z-index: calc(var(--z-sticky) - 1);
+  position: sticky; top: calc(var(--appbar-h) + env(safe-area-inset-top, 0px));
+  z-index: calc(var(--z-nav) - 1);
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
   padding: 0.625rem 0.875rem;
   background: var(--surface);
@@ -292,18 +277,6 @@ tr.detail > td { padding: 0; background: var(--surface-sunk); border-bottom: 1px
 [hidden] { display: none !important; }
 
 /* ───────────────────────────────────────────────────── 설정 패널 */
-details.settings > summary {
-  display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.875rem 1rem;
-  cursor: pointer; list-style: none;
-  font-weight: 620; font-size: 0.9375rem;
-}
-details.settings > summary::-webkit-details-marker { display: none; }
-details.settings > summary .chev { color: var(--ink-3); transition: transform var(--dur) var(--ease); }
-details.settings[open] > summary { border-bottom: 1px solid var(--line-soft); }
-details.settings[open] > summary .chev { transform: rotate(90deg); }
-details.settings > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius); }
-
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
 .targets { display: grid; gap: 0.5rem; }
 .trow { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto; gap: 0.5rem; align-items: center; }
@@ -331,12 +304,15 @@ details.settings > summary:focus-visible { outline: 2px solid var(--accent); out
 }
 @keyframes shimmer { to { background-position: -160% 0; } }
 
+/* flex 로 두면 <strong>·<span> 이 각각 플렉스 아이템이 되어
+   좁은 화면에서 글자가 한 자씩 세로로 쪼개진다. 문장이므로 block 이 맞다. */
 .note {
-  display: flex; gap: 0.5rem; align-items: flex-start;
+  display: block;
   margin: 0 1rem 1rem; padding: 0.625rem 0.75rem;
   border: 1px solid var(--line); border-radius: var(--radius-s);
   background: var(--surface-sunk);
-  font-size: 0.8125rem; color: var(--ink-2);
+  font-size: 0.8125rem; line-height: 1.6; color: var(--ink-2);
+  word-break: keep-all;
 }
 .note.err { border-color: var(--danger); color: var(--danger); background: transparent; }
 
@@ -483,15 +459,11 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
   .splash-lead, .splash-dedication { opacity: 1; filter: none; transform: none; }
   .splash.out { opacity: 0; clip-path: none; }
 }
-
-@media (max-width: 640px) {
-  main { padding: 1rem 0.75rem 3rem; gap: 1rem; }
-  .topbar { padding: 0.625rem 0.875rem; gap: 0.625rem; }
-  .brand span { display: none; }
-}
 </style>
+<!-- 셸(앱 / ERP)은 위 토큰 위에 얹힌다. 순서가 곧 우선순위라 뒤에 둔다. -->
+<link rel="stylesheet" href="/static/shell.css" />
 </head>
-<body>
+<body data-view="search">
 
 <!-- 첫 진입 장면. JS 가 죽으면 hidden 인 채로 남아 대시보드를 가리지 않는다. -->
 <div class="splash" id="splash" hidden>
@@ -519,8 +491,10 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
   })();
 </script>
 
-<header class="topbar">
-  <div class="brand">
+<header class="appbar">
+  <!-- 모바일은 '지금 어느 화면인지', 데스크톱은 '무슨 제품인지'를 단다. -->
+  <h2 class="view-title" id="viewTitle">순위 조회</h2>
+  <div class="brand-desktop">
     <button class="brand-replay" id="brandReplay" type="button" title="처음 화면 다시 보기">
       <h1>파워링크 노출순위 모니터</h1>
     </button>
@@ -532,8 +506,28 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
   </div>
 </header>
 
-<main>
+<div class="shell">
+  <!-- ERP 좌측 메뉴 — 넓은 화면에서만 나타난다 -->
+  <nav class="sidenav" aria-label="화면 메뉴">
+    <button type="button" data-goto="search" aria-current="page">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.25" stroke="currentColor" stroke-width="1.5"/><path d="M12.9 12.9 17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      순위 조회<span class="count" id="navCountKw"></span>
+    </button>
+    <button type="button" data-goto="analysis" aria-current="false">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16.5V9M8 16.5V4M13 16.5v-5M17.5 16.5V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      분석<span class="count" id="navCountSample"></span>
+    </button>
+    <button type="button" data-goto="settings" aria-current="false">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      설정<span class="count" id="navCountTarget"></span>
+    </button>
+    <div class="nav-gap"></div>
+    <p class="nav-note">모바일 파워링크 기준입니다. 1페이지에 15개가 노출되고, 16위부터는 '더보기'를 눌러야 보입니다.</p>
+  </nav>
+
+  <main class="workspace">
   <!-- ── 조회 ───────────────────────────────────────────────── -->
+  <section class="view" data-view-name="search">
   <section class="panel">
     <header>
       <h2>순위 조회</h2>
@@ -546,11 +540,15 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
         <textarea id="kw" placeholder="중고차팔기, 내차팔기, 내차시세조회&#10;&#10;콤마·줄바꿈으로 구분합니다. 엑셀에서 셀을 여러 개 복사해 그대로 붙여넣어도 됩니다."></textarea>
         <p class="hint">비워두고 조회하면 설정에 저장된 키워드 목록을 사용합니다.</p>
       </div>
-      <div class="actions">
-        <button class="btn primary" id="go" type="button">순위 조회</button>
-        <button class="btn" id="useSaved" type="button">저장된 키워드 불러오기</button>
-        <div class="spacer"></div>
-        <button class="btn" id="saveKw" type="button">이 키워드를 자동수집 목록으로 저장</button>
+      <!-- 데스크톱은 주 동작이 맨 앞, 모바일은 엄지 닿는 맨 아래 (CSS 가 순서를 뒤집는다) -->
+      <div class="actionbar">
+        <div class="sticky-action">
+          <button class="btn primary" id="go" type="button">순위 조회</button>
+        </div>
+        <div class="actions">
+          <button class="btn" id="useSaved" type="button">저장된 키워드 불러오기</button>
+          <button class="btn" id="saveKw" type="button">자동수집 목록으로 저장</button>
+        </div>
       </div>
     </div>
   </section>
@@ -565,12 +563,14 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
     <div id="result">
       <div class="empty">
         <h3>아직 조회한 순위가 없습니다</h3>
-        <p>위에 키워드를 넣고 <strong>순위 조회</strong>를 누르면, 키워드별로 추적 업체가 파워링크에서 몇 위에 노출되는지 표로 정리됩니다. 키워드를 눌러 광고 목록 전체를 펼쳐 볼 수도 있습니다.</p>
+        <p>위에 키워드를 넣고 <strong>순위 조회</strong>를 누르면, 키워드별로 추적 업체가 파워링크에서 몇 위에 노출되는지 정리됩니다. 키워드를 눌러 광고 목록 전체를 볼 수도 있습니다.</p>
       </div>
     </div>
   </section>
+  </section>
 
   <!-- ── 분석 ───────────────────────────────────────────────── -->
+  <section class="view" data-view-name="analysis">
   <!-- 필터는 아래 모든 차트를 함께 바꾸는 한 줄이다. 차트마다 따로 두지 않는다. -->
   <section class="filterbar" id="filterbar" hidden>
     <span class="fb-title">분석</span>
@@ -602,14 +602,12 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
       <p>순위를 한 번 조회하면 KPI와 히트맵이, 두 번 이상 조회하거나 자동 수집이 돌면 추이·변화·시간대 분석이 채워집니다.</p>
     </div>
   </section>
+  </section>
 
   <!-- ── 설정 ───────────────────────────────────────────────── -->
-  <section class="panel">
-    <details class="settings" id="settings">
-      <summary>
-        <svg class="chev" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M4 2.5 8 6l-4 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        설정
-      </summary>
+  <section class="view" data-view-name="settings">
+    <section class="panel" id="settings">
+      <header><h2>설정</h2></header>
       <div class="panel-body">
         <div class="grid2">
           <div class="field">
@@ -650,16 +648,58 @@ tr.detail > td > .detail-shell > div { overflow: hidden; }
           </div>
         </div>
 
-        <div class="actions">
-          <label class="switch"><input type="checkbox" id="cfgSchedule" /> 매시 자동 수집 사용</label>
-          <div class="spacer"></div>
-          <button class="btn" id="runNow" type="button">지금 자동수집 1회 실행</button>
-          <button class="btn primary" id="saveCfg" type="button">설정 저장</button>
+        <div class="actionbar">
+          <div class="sticky-action">
+            <button class="btn primary" id="saveCfg" type="button">설정 저장</button>
+          </div>
+          <div class="actions">
+            <label class="switch"><input type="checkbox" id="cfgSchedule" /> 매시 자동 수집 사용</label>
+            <button class="btn" id="runNow" type="button">지금 자동수집 1회 실행</button>
+          </div>
         </div>
       </div>
-    </details>
+    </section>
   </section>
-</main>
+  </main>
+</div>
+
+<!-- ERP 상태바 — 넓은 화면에서만 -->
+<footer class="statusbar">
+  <span id="stStatus">준비</span>
+  <span class="spacer"></span>
+  <span id="stKeywords"></span>
+  <span id="stSamples"></span>
+  <span id="stLast"></span>
+</footer>
+
+<!-- 앱 하단 탭바 — 좁은 화면에서만 -->
+<nav class="tabbar" aria-label="화면 전환">
+  <button type="button" data-goto="search" aria-current="page">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.25" stroke="currentColor" stroke-width="1.6"/><path d="M12.9 12.9 17 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    조회
+  </button>
+  <button type="button" data-goto="analysis" aria-current="false">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 16.5V9M8 16.5V4M13 16.5v-5M17.5 16.5V7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    분석
+  </button>
+  <button type="button" data-goto="settings" aria-current="false">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.6"/><path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1 4.7 4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    설정
+  </button>
+</nav>
+
+<!-- 좁은 화면의 광고 목록은 인라인 대신 시트로 덮는다 -->
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="sheet-grab"><i></i></div>
+  <div class="sheet-head">
+    <h3 id="sheetTitle">광고 목록</h3>
+    <div class="spacer"></div>
+    <button class="sheet-close" type="button" id="sheetClose" aria-label="닫기">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M3.5 3.5l7 7m0-7l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="sheet-body" id="sheetBody"></div>
+</dialog>
 
 <div id="toast" role="status" aria-live="polite"></div>
 
@@ -673,6 +713,23 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const state = { cfg: null, results: [], detail: new Map(), busy: false, analysis: null, lastRanks: new Map() };
 
 const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+/* ═══════════════════════════════════════════════════════ 화면 전환
+   좁으면 하단 탭바, 넓으면 좌측 메뉴 — 껍데기만 다르고 화면 구성은 같다.
+   기기마다 정보구조를 바꾸면 쓰는 사람이 헷갈린다. */
+const VIEWS = { search: "순위 조회", analysis: "분석", settings: "설정" };
+
+function setView(name, opts) {
+  if (!VIEWS[name]) return;
+  document.body.dataset.view = name;
+  $("#viewTitle").textContent = VIEWS[name];
+  $$("[data-goto]").forEach((b) =>
+    b.setAttribute("aria-current", b.dataset.goto === name ? "page" : "false"));
+  if (!(opts && opts.keepScroll)) window.scrollTo({ top: 0, behavior: "instant" });
+  // 분석 화면은 열릴 때 비어 있으면 그때 채운다 — 첫 진입을 붙잡아 두지 않는다.
+  if (name === "analysis" && !state.analysis) loadAnalytics();
+}
+$$("[data-goto]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.goto)));
 
 /* ═══════════════════════════════════════════════════════════ 스플래시 */
 const SLOT_COUNT = 15;   // 모바일 파워링크 1페이지 노출 개수
@@ -951,11 +1008,31 @@ function renderResults(data) {
       </tr>`;
   }).join("");
 
+  // 좁은 화면용 리스트. 표를 옆으로 굴리게 두는 대신 행을 다시 짠다.
+  // 둘 다 그려 두고 CSS 가 폭에 맞는 쪽만 보여준다 — 리사이즈 때 다시 그릴 필요가 없다.
+  const list = rows.map((r) => {
+    const primary = r.ranks.find((x) => x.target === targets[0]);
+    const prank = primary ? primary.rank : null;
+    const others = r.ranks.slice(1)
+      .map((x) => `<span>${esc(x.target)} <b>${x.rank === null ? "밖" : x.rank}</b></span>`).join("");
+    const shift = primary && primary.unstable ? `<span class="tag shift">변동</span>` : "";
+    return `<button class="rlist-row" type="button" data-kw="${esc(r.keyword)}">
+        <span class="rlist-kw">${esc(r.keyword)}${shift}${
+          r.error ? `<span class="tag" style="color:var(--danger);border-color:var(--danger)">오류</span>` : ""}</span>
+        <span class="rlist-primary ${prank === null ? "out" : rankClass(prank)}"
+              aria-label="${esc(targets[0])} ${prank === null ? "순위밖" : prank + "위"}">${
+          prank === null ? "순위밖" : `${prank}<small>위</small>`}</span>
+        <span class="rlist-sub">${others}</span>
+        <span class="rlist-meta">전체 ${r.total_ads || "-"}개 · ${hhmm(r.fetched_at)}</span>
+      </button>`;
+  }).join("");
+
   $("#result").innerHTML = `
     <div class="tablewrap"><table>
       <caption class="sr">키워드별 파워링크 노출순위</caption>
       <thead>${head}</thead><tbody>${body}</tbody>
     </table></div>
+    <div class="rlist">${list}</div>
     <div class="note">
       순위는 <strong>모바일 파워링크</strong> 기준이며 1페이지에 15개가 노출됩니다.
       16위 이상은 사용자가 '더보기'를 눌러야 보이는 자리입니다.
@@ -963,11 +1040,37 @@ function renderResults(data) {
     </div>`;
 
   $("#resultMeta").textContent = `${rows.length}개 키워드 · ${data.elapsed_sec}초`;
+  syncStatusBar();
 
   $$("#result .kw").forEach((b) => b.addEventListener("click", () => toggleDetail(b)));
+  $$("#result .rlist-row").forEach((b) => b.addEventListener("click", () => openSheet(b.dataset.kw)));
 }
 
-/* 상세는 모달 대신 행 아래로 펼친다. */
+/* 광고 목록 HTML — 인라인 펼침과 시트가 같은 결과를 쓴다. */
+async function detailHtml(kw) {
+  if (state.detail.has(kw)) return state.detail.get(kw);
+  const d = await api(`/api/detail?keyword=${encodeURIComponent(kw)}`);
+  const html = `<div class="detail-inner">
+      <p class="hint" style="margin-bottom:.5rem">
+        '${esc(d.keyword)}' 파워링크 전체 ${d.total_ads}개 · ${hhmm(d.fetched_at)} 기준
+      </p>
+      <div class="adlist">${d.items.map((it) => `
+        <div class="ad ${it.is_target.length ? "hit" : ""}">
+          <div class="r">${it.rank}</div>
+          <div>
+            <div><span class="site">${esc(it.site || "(업체명 없음)")}</span>
+                 <span class="dom">${esc(it.domain)}</span>
+                 ${it.is_target.map((n) => `<span class="tag">${esc(n)}</span>`).join("")}</div>
+            <div class="tt">${esc(it.title)}</div>
+          </div>
+        </div>`).join("")}
+      </div>
+    </div>`;
+  state.detail.set(kw, html);
+  return html;
+}
+
+/* ERP 셸: 모달 대신 행 아래로 편다. 표의 맥락을 잃지 않는 게 낫다. */
 async function toggleDetail(btn) {
   const i = btn.dataset.i;
   const kw = btn.dataset.kw;
@@ -986,35 +1089,29 @@ async function toggleDetail(btn) {
   row.hidden = false;
   requestAnimationFrame(() => row.classList.add("open"));
 
-  if (state.detail.has(kw)) {
-    cell.innerHTML = state.detail.get(kw);
-    return;
-  }
-  cell.innerHTML = `<div class="skel"><i></i><i></i><i></i></div>`;
+  if (!state.detail.has(kw)) cell.innerHTML = `<div class="skel"><i></i><i></i><i></i></div>`;
   try {
-    const d = await api(`/api/detail?keyword=${encodeURIComponent(kw)}`);
-    const html = `<div class="detail-inner">
-        <p class="hint" style="margin-bottom:.5rem">
-          '${esc(d.keyword)}' 파워링크 전체 ${d.total_ads}개 · ${hhmm(d.fetched_at)} 기준
-        </p>
-        <div class="adlist">${d.items.map((it) => `
-          <div class="ad ${it.is_target.length ? "hit" : ""}">
-            <div class="r">${it.rank}</div>
-            <div>
-              <div><span class="site">${esc(it.site || "(업체명 없음)")}</span>
-                   <span class="dom">${esc(it.domain)}</span>
-                   ${it.is_target.map((n) => `<span class="tag">${esc(n)}</span>`).join("")}</div>
-              <div class="tt">${esc(it.title)}</div>
-            </div>
-          </div>`).join("")}
-        </div>
-      </div>`;
-    state.detail.set(kw, html);
-    cell.innerHTML = html;
+    cell.innerHTML = await detailHtml(kw);
   } catch (e) {
     cell.innerHTML = `<div class="note err">${esc(e.message)}</div>`;
   }
 }
+
+/* 앱 셸: 광고 70여 개를 목록 안에 펴면 길을 잃는다. 시트로 덮는다. */
+async function openSheet(kw) {
+  const dlg = $("#sheet");
+  $("#sheetTitle").textContent = `'${kw}' 광고 목록`;
+  $("#sheetBody").innerHTML = `<div class="skel"><i></i><i></i><i></i><i></i></div>`;
+  if (!dlg.open) dlg.showModal();
+  try {
+    $("#sheetBody").innerHTML = await detailHtml(kw);
+  } catch (e) {
+    $("#sheetBody").innerHTML = `<div class="note err">${esc(e.message)}</div>`;
+  }
+}
+$("#sheetClose").addEventListener("click", () => $("#sheet").close());
+// 시트 바깥(백드롭)을 누르면 닫힌다 — 네이티브 시트가 그렇게 동작한다
+$("#sheet").addEventListener("click", (e) => { if (e.target === $("#sheet")) $("#sheet").close(); });
 
 /* ─────────────────────────────────────────────────────── 분석 & 차트 */
 function analysisHours() { return Number($("#fHours").value) || 72; }
@@ -1046,6 +1143,7 @@ async function loadAnalytics(preferKeyword) {
     wrap.querySelector(".chart-grid").hidden = false;
     $("#fMeta").textContent =
       `${a.current.length}개 키워드 · 측정 ${a.sample_count}건${a.kpi.compared ? "" : " · 직전 비교 대기"}`;
+    syncStatusBar();
 
     Viz.renderKpis($("#kpiRow"), a.kpi, a.kpi_spark);
     Viz.renderHeatmap($("#chartHeatmap"), { heatmap: a.heatmap, firstPage: a.first_page });
@@ -1076,10 +1174,28 @@ function drawTrend(keyword) {
 }
 
 /* ──────────────────────────────────────────────────── 상태 표시 */
+
+/* ERP 셸의 하단 상태바 + 좌측 메뉴의 건수. 좁은 화면에서는 화면에 없다. */
+function syncStatusBar() {
+  const kwCount = state.results.length || (state.cfg?.keywords || []).length;
+  const samples = state.analysis?.sample_count;
+  $("#stKeywords").textContent = kwCount ? `키워드 ${kwCount}` : "";
+  $("#stSamples").textContent = samples ? `측정 ${samples}건` : "";
+  $("#navCountKw").textContent = kwCount || "";
+  $("#navCountSample").textContent = samples || "";
+  $("#navCountTarget").textContent = (state.cfg?.targets || []).length || "";
+}
+
 async function loadStatus() {
   try {
     const s = await api("/api/status");
-    const sc = s.scheduler;
+    const sc0 = s.scheduler;
+    $("#stStatus").textContent = !sc0.enabled
+      ? "자동 수집 꺼짐"
+      : sc0.last_run_at ? `자동 수집 켜짐 · 최근 ${hhmm(sc0.last_run_at)}` : "자동 수집 대기";
+    $("#stLast").innerHTML = sc0.next_run_at ? `다음 수집 <b>${hhmm(sc0.next_run_at)}</b>` : "";
+    syncStatusBar();
+    const sc = sc0;
     const el = $("#sched");
     el.dataset.on = sc.enabled && sc.running ? "1" : "0";
     if (!sc.enabled) {
@@ -1141,13 +1257,20 @@ window.addEventListener("scroll", () => Viz.hideTip(), { passive: true });
 /* ──────────────────────────────────────────────────────── 시작 */
 (async function init() {
   await loadConfig();
+  syncStatusBar();
   await loadStatus();
-  await loadAnalytics();
   setInterval(loadStatus, 60_000);
 
+  // ?view=analysis 로 특정 화면을 바로 열 수 있다 (분석은 그때 로드된다)
+  const params = new URLSearchParams(location.search);
+  const view = params.get("view");
+  if (view && VIEWS[view]) setView(view);
+  else await loadAnalytics();   // 조회 화면으로 들어오면 분석은 미리 데워 둔다
+
   // ?q=중고차팔기,내차팔기 로 열면 바로 조회한다. 즐겨찾기로 걸어두고 쓸 수 있다.
-  const q = new URLSearchParams(location.search).get("q");
+  const q = params.get("q");
   if (q) {
+    setView("search", { keepScroll: true });
     $("#kw").value = q;
     await search();
   }

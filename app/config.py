@@ -22,7 +22,9 @@ DEFAULT_CONFIG: dict = {
     "targets": [
         {"name": "엔카", "patterns": ["엔카", "encar"]},
         {"name": "헤이딜러", "patterns": ["헤이딜러", "heydealer"]},
-        {"name": "K다이렉트카", "patterns": ["다이렉트카", "kdirectcar"]},
+        # 매칭어는 부분 일치라 느슨하면 남의 광고를 잡는다.
+        # '다이렉트카' 하나만 두면 '국민다이렉트카'가 걸려 1위로 둔갑한다.
+        {"name": "K다이렉트카", "patterns": ["K다이렉트카", "kdirectcar"]},
         {"name": "현대글로비스오토벨", "patterns": ["오토벨", "autobell"]},
     ],
     "repeat": 3,
