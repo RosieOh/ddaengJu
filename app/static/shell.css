@@ -265,16 +265,16 @@ dialog.sheet[open]::backdrop { animation: fade-in 260ms var(--ease); }
   /* ── 고밀도 데이터 그리드 ─────────────────────────────────────── */
   th, td { padding: 0.3125rem 0.625rem; font-size: 0.75rem; }
 
-  /* 열 이름은 표를 내려가도 남아야 한다. 키워드가 40개면 무슨 열인지 잊는다.
-     overflow-x:auto 는 y 축까지 스크롤 컨테이너로 만들어 버려서, 스티키 머리글이
-     '페이지'가 아니라 이 상자를 기준으로 서다가 결국 아무 데도 안 붙었다.
-     y 는 clip 으로 잘라 스크롤 컨테이너가 되는 걸 막고, 기준을 페이지로 되돌린다. */
-  .tablewrap { overflow-y: clip; }
-  thead th {
-    top: var(--toolbar-h);   /* 툴바 아래에 선다. 0 이면 툴바 뒤로 들어가 안 보인다 */
-    z-index: 1;              /* 본문 행 위, 툴바(--z-nav) 아래 */
-    font-size: 0.6875rem; letter-spacing: 0.01em;
-  }
+  /* NOTE — thead 의 position:sticky 는 지금 아무 일도 하지 않는다(알고 두는 것).
+     .tablewrap 의 overflow-x:auto 가 y 축까지 스크롤 컨테이너로 만들기 때문에
+     (브라우저가 overflow-y:clip 을 hidden 으로 바꾼다) 머리글의 기준은 페이지가
+     아니라 이 상자인데, 상자에 높이가 없어 스크롤될 일이 없다.
+     상자에 max-height 를 주면 머리글은 붙지만 페이지가 구를 때 상자째 툴바 뒤로
+     빠져나가고, 상자를 sticky 로 세우면 뒤따르는 안내문과 겹친다 — 둘 다 확인했다.
+     제대로 고치려면 .workspace 를 자체 스크롤 영역으로 만들어(body 는 안 구르게)
+     .tablewrap 의 가로 스크롤을 workspace 로 올려야 한다. 셸 구조를 바꾸는 일이라
+     이번 패스에서는 손대지 않는다. 키워드가 많으면 열 이름이 위로 사라진다. */
+  thead th { font-size: 0.6875rem; letter-spacing: 0.01em; }
   /* 열 구분선 — 숫자를 열 단위로 훑는 화면이라 세로줄이 있어야 눈이 안 샌다 */
   th + th, td + td { border-left: 1px solid var(--line-soft); }
   tbody tr.kw-row:nth-child(4n + 1) { background: oklch(0.5 0 0 / 0.022); }
