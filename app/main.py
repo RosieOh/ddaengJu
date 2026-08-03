@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """네이버 파워링크 노출순위 모니터 — 웹 서버.
 
-실행:  python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-또는:  run.bat
+실행:  python -m uvicorn app.main:app --host 0.0.0.0 --port 8200
+또는:  run.bat  (포트는 그 파일의 set PORT= 한 줄에서 정한다)
 """
 from __future__ import annotations
 

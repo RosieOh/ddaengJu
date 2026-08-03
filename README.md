@@ -8,16 +8,21 @@
 ## 1. 실행 방법
 
 `run.bat` 을 더블클릭하면 됩니다. 필요한 패키지가 없으면 알아서 설치하고,
-브라우저에서 <http://localhost:8000> 이 열립니다.
+브라우저에서 <http://localhost:8200> 이 열립니다.
 
 수동으로 실행하려면:
 
 ```bat
 pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8200
 ```
 
-같은 사무실 안 다른 PC에서도 `http://<서버PC의IP>:8000` 으로 접속할 수 있습니다.
+같은 사무실 안 다른 PC에서도 `http://<서버PC의IP>:8200` 으로 접속할 수 있습니다.
+
+포트를 바꾸려면 `run.bat` 첫 줄의 `set PORT=8200` 만 고치면 됩니다.
+흔한 8000 번을 쓰지 않는 이유는 Django 개발서버 등 다른 로컬 서버와 자주 겹치기
+때문입니다 — 겹치면 uvicorn 이 포트를 못 잡고, 브라우저에는 그 자리를 차지한
+다른 서버의 화면이 뜹니다.
 
 ---
 
