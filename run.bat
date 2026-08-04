@@ -37,21 +37,38 @@ if exist "%PY%" (
     echo       만들었습니다: %VENV%
 )
 
-rem ── 3. 패키지 (없을 때만 설치한다) ──────────────────────────────
-rem 실제로 import 해 보는 것이 가장 확실하다. pip list 파싱은 버전 표기와
-rem 배포판 이름이 달라 어긋나는 경우가 있다.
+rem ── 3. 패키지 (없거나 목록이 바뀌었을 때만 설치한다) ────────────
+rem 잠금 파일이 있으면 그걸 쓴다. 전이 의존성까지 고정돼 있어 어느 PC 에서든
+rem 같은 조합이 깔린다. 없으면 느슨한 requirements.txt 로 넘어간다.
+set REQ=requirements.txt
+if exist "requirements.lock" set REQ=requirements.lock
+
+rem 설치가 필요한지 두 가지로 판정한다.
+rem   (1) 실제로 import 되는가 — pip list 파싱은 배포판 이름과 import 이름이
+rem       다른 경우(et-xmlfile -> et_xmlfile)가 있어 어긋난다.
+rem   (2) 지금 목록이 마지막 설치 때 쓴 목록과 같은가 — 버전을 올려 놓고도
+rem       import 는 되니까, 이걸 안 보면 새 목록이 반영되지 않는다.
+set NEED=
 "%PY%" -c "import fastapi, uvicorn, requests, pandas, openpyxl" >nul 2>nul
-if errorlevel 1 (
-    echo [2/2] 필요한 패키지를 설치합니다. 처음에는 몇 분 걸릴 수 있습니다...
+if errorlevel 1 set NEED=1
+if not defined NEED (
+    fc /b "%REQ%" "%VENV%\installed.txt" >nul 2>nul
+    if errorlevel 1 set NEED=1
+)
+
+if defined NEED (
+    echo [2/2] 패키지를 설치합니다 ^(%REQ%^). 처음에는 몇 분 걸릴 수 있습니다...
     "%PY%" -m pip install --upgrade pip >nul 2>nul
-    "%PY%" -m pip install -r requirements.txt
+    "%PY%" -m pip install -r "%REQ%"
     if errorlevel 1 goto PIPFAIL
     rem 설치가 끝났다고 끝난 게 아니다. 실제로 import 되는지 다시 확인한다.
     "%PY%" -c "import fastapi, uvicorn, requests, pandas, openpyxl" >nul 2>nul
     if errorlevel 1 goto PIPFAIL
+    rem 무엇으로 깔았는지 남겨 둔다. 다음 실행의 (2) 판정 기준이 된다.
+    copy /y "%REQ%" "%VENV%\installed.txt" >nul
     echo       설치를 마쳤습니다.
 ) else (
-    echo [2/2] 패키지 확인됨 - 건너뜁니다.
+    echo [2/2] 패키지 확인됨 ^(%REQ%^) - 건너뜁니다.
 )
 
 echo.

@@ -14,7 +14,7 @@
 
 ```
 [1/2] 가상환경을 만듭니다. 처음 한 번만 걸립니다...   →  .venv 생성
-[2/2] 필요한 패키지를 설치합니다...                  →  requirements.txt 설치
+[2/2] 패키지를 설치합니다 (requirements.lock)...     →  버전 고정 설치
 ```
 
 가상환경(`.venv`)을 프로젝트 안에 두고 그 파이썬으로 서버를 돌립니다.
@@ -25,11 +25,30 @@
 
 무언가 꼬이면 `.venv` 폴더를 지우고 다시 실행하세요. 처음부터 다시 받습니다.
 
+### 버전은 잠가 두었습니다
+
+의존성 파일이 두 개인 이유가 있습니다.
+
+| 파일 | 역할 |
+|---|---|
+| `requirements.txt` | **무엇에 의존하는가** — 직접 의존성 5개, 읽기 위한 파일 |
+| `requirements.lock` | **어떤 버전으로 돌아가는가** — 전이 의존성까지 25개 고정 |
+
+`run.bat` 은 잠금 파일이 있으면 그걸 먼저 씁니다. `>=` 만 두면 새 PC 에서 만든
+가상환경이 그 시점의 최신 버전을 받아 PC 마다 다른 조합이 됩니다. 그러면 "내
+PC 에서는 되는데" 가 생깁니다.
+
+**패키지 목록이 바뀌면 알아서 다시 설치합니다.** 마지막 설치 때 쓴 목록을
+`.venv\installed.txt` 에 남겨 두고 매번 비교하기 때문입니다. 버전을 올려도
+import 자체는 되니까, 이걸 안 보면 새 목록이 반영되지 않습니다.
+
+버전을 올릴 때는 `requirements.lock` 머리말의 4단계를 따르세요.
+
 수동으로 실행하려면:
 
 ```bat
 python -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m pip install -r requirements.lock
 .venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8200
 ```
 
