@@ -7,14 +7,30 @@
 
 ## 1. 실행 방법
 
-`run.bat` 을 더블클릭하면 됩니다. 필요한 패키지가 없으면 알아서 설치하고,
-브라우저에서 <http://localhost:8200> 이 열립니다.
+`run.bat` 을 더블클릭하면 됩니다. 브라우저에서 <http://localhost:8200> 이 열립니다.
+
+처음 실행하면 준비를 두 단계로 알아서 합니다. **이미 되어 있으면 건너뛰므로**
+두 번째 실행부터는 바로 서버가 뜹니다.
+
+```
+[1/2] 가상환경을 만듭니다. 처음 한 번만 걸립니다...   →  .venv 생성
+[2/2] 필요한 패키지를 설치합니다...                  →  requirements.txt 설치
+```
+
+가상환경(`.venv`)을 프로젝트 안에 두고 그 파이썬으로 서버를 돌립니다.
+전역 파이썬을 건드리지 않으므로 이 PC 의 다른 파이썬 프로젝트와 패키지 버전이
+충돌하지 않습니다. 준비가 끝났는지는 `pip list` 를 뒤지지 않고 **실제로 import 해
+보는 방식**으로 판정합니다 — 배포판 이름과 import 이름이 다른 경우가 있어
+목록 비교는 어긋날 때가 있습니다.
+
+무언가 꼬이면 `.venv` 폴더를 지우고 다시 실행하세요. 처음부터 다시 받습니다.
 
 수동으로 실행하려면:
 
 ```bat
-pip install -r requirements.txt
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8200
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8200
 ```
 
 같은 사무실 안 다른 PC에서도 `http://<서버PC의IP>:8200` 으로 접속할 수 있습니다.
