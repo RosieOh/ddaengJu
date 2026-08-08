@@ -1,10 +1,5 @@
 # -*- coding: utf-8 -*-
-"""git 에 얹기 좋은 이력 보관소 (JSONL).
-
-로컬 실행은 SQLite 를 쓰지만, GitHub Actions 로 수집할 때는 결과를 리포지토리에
-커밋해야 한다. SQLite 파일은 바이너리라 매시 커밋하면 매번 전체 사본이 쌓여
-저장소가 금방 부푼다. 한 줄에 한 측정을 담는 JSONL 이면 append 만 diff 로 남는다.
-"""
+"""git 에 얹기 좋은 이력 보관소."""
 from __future__ import annotations
 
 import json
