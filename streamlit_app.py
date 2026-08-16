@@ -99,7 +99,8 @@ st.sidebar.caption(
 st.title("네이버 파워링크 노출순위")
 st.caption(
     f"모바일 파워링크(m.ad.search.naver.com) 기준 · 1페이지 15개 · "
-    f"기준 업체 **{target_name}**"
+    f"기준 업체 **{target_name}** · "
+    "**버튼을 누른 그 시각**의 순위를 즉시 조회합니다(예약 수집 아님)"
 )
 
 tab_run, tab_hist = st.tabs(["순위 조회", "추이"])
@@ -130,6 +131,7 @@ with tab_run:
 
         df = to_table(measured, targets[0].name, started)
         st.session_state["result"] = df
+        st.session_state["ran_at"] = started
         st.session_state["elapsed"] = (datetime.now() - started).total_seconds()
 
         if save_history:
@@ -138,13 +140,25 @@ with tab_run:
 
     df = st.session_state.get("result")
     if df is not None:
+        ran_at = st.session_state.get("ran_at", datetime.now())
+        age_min = (datetime.now() - ran_at).total_seconds() / 60
+
         found = int((df["_순위"] < 10**6).sum())
         first = int((df["_순위"] <= 15).sum())
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("키워드", len(df))
+        # 파워링크는 시간대마다 순위가 바뀐다. '언제 잰 값인지'가 순위만큼 중요하다.
+        c1.metric("조회 시각", ran_at.strftime("%H:%M"), help=ran_at.strftime("%Y-%m-%d %H:%M:%S"))
         c2.metric("노출", f"{found} / {len(df)}")
         c3.metric("첫 페이지(15위 내)", first)
         c4.metric("걸린 시간", f"{st.session_state.get('elapsed', 0):.0f}초")
+
+        # 열어 둔 채 시간이 지나면 지금 순위가 아니다. 오래된 표를 현재로 착각하지 않게.
+        if age_min >= 30:
+            st.warning(
+                f"이 표는 **{ran_at.strftime('%H:%M')}** 에 잰 값입니다 "
+                f"({int(age_min)}분 전). 파워링크는 시간대마다 순위가 바뀌니, "
+                "지금 순위가 필요하면 **순위 조회**를 다시 누르세요."
+            )
 
         errs = df[df["_오류"] != ""]
         if len(errs):
@@ -160,11 +174,20 @@ with tab_run:
             use_container_width=True,
             height=min(760, 40 + 35 * len(view)),
         )
-        st.caption("**0위 = 미노출**(설정한 페이지 범위 안에서 못 찾음). "
-                   "16위부터는 사용자가 '더보기'를 눌러야 보이는 자리입니다.")
+        st.caption(
+            f"**{ran_at.strftime('%Y-%m-%d %H:%M')} 시점의 순위**입니다. "
+            "**0위 = 미노출**(설정한 페이지 범위 안에서 못 찾음). "
+            "16위부터는 사용자가 '더보기'를 눌러야 보이는 자리입니다."
+        )
 
-        stamp = datetime.now().strftime("%Y%m%d_%H%M")
-        out = view[["날짜", "키워드", RANK_COL]]
+        with_time = st.checkbox(
+            "내려받기에 조회 시각 넣기", value=False,
+            help="문서 양식은 날짜만 씁니다. 하루에 여러 번 재서 시간대별로 비교할 때만 켜세요.",
+        )
+        stamp = ran_at.strftime("%Y%m%d_%H%M")
+        out = view[["날짜", "키워드", RANK_COL]].copy()
+        if with_time:
+            out.insert(1, "시각", ran_at.strftime("%H:%M"))
         d1, d2 = st.columns(2)
         # 엑셀이 UTF-8 CSV 를 CP949 로 읽어 한글을 깨뜨린다. BOM 을 붙여야 한다.
         d1.download_button(

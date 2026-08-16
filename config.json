@@ -65,6 +65,6 @@
   "repeat": 3,
   "max_workers": 5,
   "max_pages": 10,
-  "schedule_enabled": true,
+  "schedule_enabled": false,
   "schedule_minute": 0
 }

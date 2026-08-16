@@ -43,7 +43,11 @@ DEFAULT_CONFIG: dict = {
     "repeat": 3,
     "max_workers": 5,
     "max_pages": 10,
-    "schedule_enabled": True,
+    # 이 도구는 '버튼을 누른 그 시각'의 순위를 보는 물건이다.
+    # 파워링크는 시간대마다 순위가 바뀌므로 미리 모아 둔 값은 담당자가
+    # 보고할 시점의 값이 아니다. 그래서 자동 수집은 기본 꺼짐이다.
+    # 추이를 쌓고 싶을 때만 설정에서 켠다.
+    "schedule_enabled": False,
     "schedule_minute": 0,
 }
 
