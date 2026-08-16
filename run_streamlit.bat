@@ -21,6 +21,14 @@ if not defined BOOT (
 )
 if not defined BOOT goto NOPYTHON
 
+rem ── 1.5 경로 길이 확인 ─────────────────────────────────────────
+rem streamlit 패키지 안에 140자짜리 경로가 들어 있다. 프로젝트가 깊은 폴더에
+rem 있으면 설치 도중 'WinError 206 파일 이름이 너무 깁니다' 로 조용히 실패하고,
+rem streamlit 만 빠진 채 나머지가 깔려 원인을 찾기 어려워진다.
+set PROJLEN=0
+for /f %%L in ('powershell -NoProfile -Command "$env:CD.Length" 2^>nul') do set PROJLEN=%%L
+if %PROJLEN% GTR 95 goto PATHTOOLONG
+
 rem ── 2. 가상환경 ────────────────────────────────────────────────
 if exist "%PY%" (
     echo [1/2] 가상환경 확인됨 - 건너뜁니다.
@@ -36,7 +44,11 @@ rem ── 3. 패키지 ──────────────────�
 if errorlevel 1 (
     echo [2/2] 패키지를 설치합니다. 처음에는 몇 분 걸릴 수 있습니다...
     "%PY%" -m pip install --upgrade pip >nul 2>nul
-    "%PY%" -m pip install -r requirements-streamlit.txt
+    if exist "requirements.lock" (
+        "%PY%" -m pip install -r requirements.lock
+    ) else (
+        "%PY%" -m pip install -r requirements.txt
+    )
     if errorlevel 1 goto PIPFAIL
     "%PY%" -c "import streamlit, requests, pandas, openpyxl" >nul 2>nul
     if errorlevel 1 goto PIPFAIL
@@ -74,6 +86,18 @@ exit /b 1
 :PIPFAIL
 echo.
 echo [오류] 패키지 설치에 실패했습니다. 인터넷 연결을 확인하고 다시 실행하세요.
+echo.
+pause
+exit /b 1
+
+:PATHTOOLONG
+echo.
+echo [오류] 폴더 경로가 너무 깁니다 ^(%PROJLEN%자^).
+echo.
+echo   %CD%
+echo.
+echo   streamlit 설치 파일 안에 긴 경로가 있어, 이대로는 설치가 실패합니다.
+echo   프로젝트 폴더를 짧은 경로로 옮긴 뒤 다시 실행하세요. 예: C:\work\DdaengJu
 echo.
 pause
 exit /b 1

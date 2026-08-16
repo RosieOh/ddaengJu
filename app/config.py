@@ -2,7 +2,7 @@
 """config.json 읽기/쓰기.
 
 설정의 단일 출처는 프로젝트 루트의 config.json 이다.
-웹 UI 에서 저장해도 이 파일에 쓰이므로, 메모장으로 직접 고쳐도 된다.
+기본 키워드 31개와 기준 업체가 여기 들어 있고, 메모장으로 직접 고쳐도 된다.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from .collector import Target
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
-DB_PATH = ROOT / "data" / "ranks.db"
+HISTORY_PATH = ROOT / "data" / "history.jsonl"
 
 # 요구사항 문서의 31개 키워드. 표 순서를 그대로 지킨다 —
 # 담당자가 쓰는 리포트와 행 순서가 어긋나면 대조가 어려워진다.
@@ -43,12 +43,6 @@ DEFAULT_CONFIG: dict = {
     "repeat": 3,
     "max_workers": 5,
     "max_pages": 10,
-    # 이 도구는 '버튼을 누른 그 시각'의 순위를 보는 물건이다.
-    # 파워링크는 시간대마다 순위가 바뀌므로 미리 모아 둔 값은 담당자가
-    # 보고할 시점의 값이 아니다. 그래서 자동 수집은 기본 꺼짐이다.
-    # 추이를 쌓고 싶을 때만 설정에서 켠다.
-    "schedule_enabled": False,
-    "schedule_minute": 0,
 }
 
 _lock = threading.Lock()
@@ -61,8 +55,6 @@ class AppConfig:
     repeat: int = 3
     max_workers: int = 5
     max_pages: int = 10
-    schedule_enabled: bool = True
-    schedule_minute: int = 0
 
     @property
     def primary_target(self) -> Target | None:
@@ -75,8 +67,6 @@ class AppConfig:
             "repeat": self.repeat,
             "max_workers": self.max_workers,
             "max_pages": self.max_pages,
-            "schedule_enabled": self.schedule_enabled,
-            "schedule_minute": self.schedule_minute,
         }
 
 
@@ -93,8 +83,6 @@ def _coerce(raw: dict) -> AppConfig:
         repeat=max(1, min(5, int(merged.get("repeat", 3)))),
         max_workers=max(1, min(10, int(merged.get("max_workers", 5)))),
         max_pages=max(1, min(30, int(merged.get("max_pages", 10)))),
-        schedule_enabled=bool(merged.get("schedule_enabled", True)),
-        schedule_minute=max(0, min(59, int(merged.get("schedule_minute", 0)))),
     )
 
 

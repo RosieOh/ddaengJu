@@ -1,6 +1,0 @@
-# Streamlit 화면만 돌릴 때 필요한 최소 묶음.
-# FastAPI 화면(run.bat)도 쓰려면 requirements.txt 를 함께 설치하세요.
-streamlit>=1.30
-requests>=2.31
-pandas>=2.0
-openpyxl>=3.1

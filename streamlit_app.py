@@ -135,7 +135,7 @@ with tab_run:
         st.session_state["elapsed"] = (datetime.now() - started).total_seconds()
 
         if save_history:
-            archive.append(config_mod.ROOT / "data" / "history.jsonl",
+            archive.append(config_mod.HISTORY_PATH,
                            archive.to_rows(measured, source="streamlit"))
 
     df = st.session_state.get("result")
@@ -210,7 +210,7 @@ with tab_hist:
     hours = st.selectbox("기간", [24, 72, 168, 720],
                          format_func=lambda h: f"최근 {h//24}일" if h >= 24 else f"최근 {h}시간",
                          index=1)
-    rows = archive.load(config_mod.ROOT / "data" / "history.jsonl", hours=hours)
+    rows = archive.load(config_mod.HISTORY_PATH, hours=hours)
     rows = [r for r in rows if r.get("target") == target_name]
     if not rows:
         st.info("아직 쌓인 이력이 없습니다. 조회를 한 번 이상 하면 여기에 추이가 그려집니다.")
