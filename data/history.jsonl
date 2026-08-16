@@ -10,3 +10,15 @@
 {"collected_at": "2026-07-31T19:02:34", "keyword": "내차시세조회", "target": "헤이딜러", "rank": 8, "total_ads": 35, "unstable": 0, "samples": "8,8,8", "source": "manual"}
 {"collected_at": "2026-07-31T19:02:34", "keyword": "내차시세조회", "target": "K다이렉트카", "rank": 22, "total_ads": 35, "unstable": 0, "samples": "22,22,22", "source": "manual"}
 {"collected_at": "2026-07-31T19:02:34", "keyword": "내차시세조회", "target": "현대글로비스오토벨", "rank": null, "total_ads": 35, "unstable": 0, "samples": "-,-,-", "source": "manual"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "중고차팔기", "target": "엔카", "rank": null, "total_ads": 43, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "중고차팔기", "target": "헤이딜러", "rank": 1, "total_ads": 43, "unstable": 0, "samples": "1,1,1", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "중고차팔기", "target": "K다이렉트카", "rank": null, "total_ads": 43, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "중고차팔기", "target": "현대글로비스오토벨", "rank": null, "total_ads": 43, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차팔기", "target": "엔카", "rank": null, "total_ads": 37, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차팔기", "target": "헤이딜러", "rank": 2, "total_ads": 37, "unstable": 0, "samples": "2,2,2", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차팔기", "target": "K다이렉트카", "rank": null, "total_ads": 37, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차팔기", "target": "현대글로비스오토벨", "rank": null, "total_ads": 37, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차시세조회", "target": "엔카", "rank": null, "total_ads": 27, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차시세조회", "target": "헤이딜러", "rank": 2, "total_ads": 27, "unstable": 0, "samples": "2,2,2", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차시세조회", "target": "K다이렉트카", "rank": null, "total_ads": 27, "unstable": 0, "samples": "-,-,-", "source": "actions"}
+{"collected_at": "2026-08-16T14:29:38", "keyword": "내차시세조회", "target": "현대글로비스오토벨", "rank": null, "total_ads": 27, "unstable": 0, "samples": "-,-,-", "source": "actions"}
