@@ -15,7 +15,7 @@ import random
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime
 from statistics import median_low
@@ -251,13 +251,32 @@ class PowerLinkCollector:
         return KeywordResult(keyword, total, _sorted(collected), fetched_at, pages)
 
     def collect_many(
-        self, keywords: Iterable[str], targets: Sequence[Target] = ()
+        self,
+        keywords: Iterable[str],
+        targets: Sequence[Target] = (),
+        on_done=None,
     ) -> list[KeywordResult]:
+        """키워드들을 동시에 수집한다.
+
+        on_done(keyword, result) 은 **끝난 순서대로** 불린다. 진행률 표시용이며,
+        결과 목록은 넘긴 키워드 순서를 그대로 지킨다.
+        """
         keywords = [k.strip() for k in keywords if k and k.strip()]
         if not keywords:
             return []
+
+        results: list[KeywordResult | None] = [None] * len(keywords)
         with ThreadPoolExecutor(max_workers=min(self.max_workers, len(keywords))) as pool:
-            return list(pool.map(lambda k: self.collect_keyword(k, targets), keywords))
+            futures = {
+                pool.submit(self.collect_keyword, kw, targets): i
+                for i, kw in enumerate(keywords)
+            }
+            for fut in as_completed(futures):
+                i = futures[fut]
+                results[i] = fut.result()
+                if on_done:
+                    on_done(keywords[i], results[i])
+        return [r for r in results if r is not None]
 
 
 def _sorted(collected: dict[int, AdItem]) -> list[AdItem]:
@@ -295,6 +314,7 @@ def measure(
     keywords: Sequence[str],
     targets: Sequence[Target],
     repeat: int = 3,
+    on_progress=None,
 ) -> list[MeasuredKeyword]:
     """키워드별로 repeat 회 조회한 뒤 순위 중앙값을 대표값으로 삼는다.
 
@@ -303,8 +323,16 @@ def measure(
     실무에서 훨씬 안정적이다.
     """
     repeat = max(1, repeat)
+    done = [0]
+    total = max(1, len(keywords) * repeat)
+
+    def tick(kw, _res):
+        done[0] += 1
+        if on_progress:
+            on_progress(done[0] / total, kw)
+
     rounds: list[list[KeywordResult]] = [
-        collector.collect_many(keywords, targets) for _ in range(repeat)
+        collector.collect_many(keywords, targets, on_done=tick) for _ in range(repeat)
     ]
 
     out: list[MeasuredKeyword] = []
