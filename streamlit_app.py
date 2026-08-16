@@ -88,12 +88,6 @@ workers = st.sidebar.slider(
 )
 save_history = st.sidebar.checkbox("결과를 이력에 저장", value=True)
 
-st.sidebar.divider()
-st.sidebar.caption(
-    "**가정용 인터넷에서 실행해야 합니다.** 네이버는 데이터센터 IP에 "
-    "광고를 적게 내려줍니다. 클라우드에 올려 돌리면 실제보다 순위가 좋게 나옵니다."
-)
-
 
 # ─────────────────────────────────────────────────────────────────── 본문
 st.title("네이버 파워링크 노출순위")
